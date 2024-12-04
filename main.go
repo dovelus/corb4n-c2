@@ -24,6 +24,13 @@ type Beacon struct {
 	LastUpdate   time.Time `json:"lastUpdate"`
 }
 
+type BeaconFile struct {
+	FileName string `json:"FileName"`
+	FileType string `json:"FileType"`
+	Output   string `json:"Output"`
+	BeaconID string `json:"BeaconID"`
+}
+
 var mockBeacons = []Beacon{
 	{
 		BeaconID:     "beacon1",
@@ -76,6 +83,7 @@ func main() {
 
 	http.HandleFunc("/", serveFile)
 	http.HandleFunc("/api/beacons", handleBeacons)
+	http.HandleFunc("/api/beaconFiles", handleBeaconFiles)
 	http.Handle("/assets/", http.StripPrefix("/assets/", http.HandlerFunc(serveAsset)))
 
 	fmt.Printf("Server is running on http://localhost:%s\n", port)
@@ -88,6 +96,60 @@ func main() {
 func handleBeacons(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(mockBeacons)
+}
+
+func handleBeaconFiles(w http.ResponseWriter, r *http.Request) {
+	beaconID := r.URL.Query().Get("BeaconID")
+	if beaconID == "" {
+		http.Error(w, "BeaconID is required", http.StatusBadRequest)
+		return
+	}
+
+	files, err := getFilesForBeacon(beaconID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	// Pretty-print the files slice for better readability
+	filesJSON, err := json.MarshalIndent(files, "", "  ")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	fmt.Println(string(filesJSON))
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(files)
+}
+
+func getFilesForBeacon(beaconID string) ([]BeaconFile, error) {
+	var files []BeaconFile
+	basePath := filepath.Join("beaconFiles", beaconID)
+
+	err := filepath.Walk(basePath, func(filePath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			content, err := os.ReadFile(filePath)
+			if err != nil {
+				return err
+			}
+			files = append(files, BeaconFile{
+				FileName: info.Name(),
+				FileType: mime.TypeByExtension(filepath.Ext(info.Name())),
+				Output:   string(content),
+				BeaconID: beaconID,
+			})
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return files, nil
 }
 
 func serveFile(w http.ResponseWriter, r *http.Request) {

@@ -17,6 +17,10 @@ import {
   Terminal,
   Camera,
   X,
+  File,
+  Copy,
+  Check,
+  Eye,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -29,50 +33,74 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "../components/ui/alert-dialog";
-import { fetchBeaconById, Beacon } from "../api/beacons";
-
-interface BeaconFiles {
-  FileName: string;
-  FileType: string;
-  Output: string;
-  BeaconID: string;
-}
-
-const mockBeaconFiles: BeaconFiles[] = [
-  {
-    FileName: "screenshot.png",
-    FileType: "Image",
-    Output: "Base64 encoded data",
-    BeaconID: "beacon123",
-  },
-  {
-    FileName: "system_info.txt",
-    FileType: "Text",
-    Output: "System information data",
-    BeaconID: "beacon123",
-  },
-];
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
+import {
+  fetchBeaconById,
+  fetchBeaconFiles,
+  Beacon,
+  BeaconFile,
+} from "../api/beacons";
 
 export default function BeaconDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const [command, setCommand] = useState("");
+  const [previewFile, setPreviewFile] = useState<BeaconFile | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
+
   const {
     data: beaconData,
-    isLoading,
-    error,
+    isLoading: isLoadingBeacon,
+    error: beaconError,
   } = useQuery<Beacon, Error>({
     queryKey: ["beacon", id],
     queryFn: () => fetchBeaconById(id!),
     enabled: !!id,
   });
 
-  if (isLoading) return <div>Loading...</div>;
-  if (error) return <div>An error occurred: {error.message}</div>;
+  const {
+    data: beaconFiles,
+    isLoading: isLoadingFiles,
+    error: filesError,
+  } = useQuery<BeaconFile[], Error>({
+    queryKey: ["beaconFiles", id],
+    queryFn: () => fetchBeaconFiles(id!),
+    enabled: !!id,
+  });
+
+  if (isLoadingBeacon || isLoadingFiles) return <div>Loading...</div>;
+  if (beaconError) return <div>An error occurred: {beaconError.message}</div>;
+  if (filesError)
+    return (
+      <div>An error occurred while fetching files: {filesError.message}</div>
+    );
   if (!beaconData) return <div>No beacon data found</div>;
 
-  const handleDownload = (fileName: string, beaconId: string) => {
-    console.log(`Downloading file: ${fileName} for beacon: ${beaconId}`);
+  const handleDownload = (fileIdentifier: string, beaconId: string) => {
+    console.log(`Downloading file: ${fileIdentifier} for beacon: ${beaconId}`);
     // Implement actual download logic here
+  };
+
+  const handlePreview = (file: BeaconFile) => {
+    setPreviewFile(file);
+  };
+
+  const handleCopyContent = () => {
+    if (previewFile) {
+      navigator.clipboard
+        .writeText(previewFile.Output)
+        .then(() => {
+          setIsCopied(true);
+          setTimeout(() => setIsCopied(false), 2000); // Reset after 2 seconds
+        })
+        .catch((err) => {
+          console.error("Failed to copy content: ", err);
+        });
+    }
   };
 
   const executeCommand = () => {
@@ -223,35 +251,99 @@ export default function BeaconDetailsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Downloadable Items</CardTitle>
+          <CardTitle>Beacon Files</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2">
-            {mockBeaconFiles.map((item, index) => (
-              <li
-                key={index}
-                className="flex items-center justify-between p-2 bg-muted rounded-md"
-              >
-                <div>
-                  <span className="font-medium">{item.FileName}</span>
-                  <span className="text-sm text-muted-foreground ml-2">
-                    ({item.FileType})
-                  </span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleDownload(item.FileName, item.BeaconID)}
-                  className="text-[#78716C] dark:text-[#A8A29E] border-[#E8E8E8] dark:border-[#292524] hover:bg-[#F5F5F4] dark:hover:bg-[#1C1917]"
+            {beaconFiles && beaconFiles.length > 0 ? (
+              beaconFiles.map((file, index) => (
+                <li
+                  key={index}
+                  className="flex items-center justify-between p-2 bg-muted rounded-md"
                 >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download
-                </Button>
+                  <div className="flex items-center">
+                    <File className="h-4 w-4 mr-2" />
+                    <span className="font-medium">{file.FileName}</span>
+                    <span className="text-sm text-muted-foreground ml-2">
+                      ({file.FileType})
+                    </span>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePreview(file)}
+                      className="text-[#78716C] dark:text-[#A8A29E] border-[#E8E8E8] dark:border-[#292524] hover:bg-[#F5F5F4] dark:hover:bg-[#1C1917]"
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      Preview
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        handleDownload(file.FileName, file.BeaconID)
+                      }
+                      className="text-[#78716C] dark:text-[#A8A29E] border-[#E8E8E8] dark:border-[#292524] hover:bg-[#F5F5F4] dark:hover:bg-[#1C1917]"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download
+                    </Button>
+                  </div>
+                </li>
+              ))
+            ) : (
+              <li className="text-center text-muted-foreground">
+                No files found for this beacon
               </li>
-            ))}
+            )}
           </ul>
         </CardContent>
       </Card>
+
+      <Dialog open={!!previewFile} onOpenChange={() => setPreviewFile(null)}>
+        <DialogContent className="sm:max-w-[800px] max-h-[80vh] overflow-hidden flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] duration-300">
+          <div className="pt-4">
+            <DialogHeader className="flex-shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-2 sm:space-y-0">
+              <DialogTitle className="text-left text-lg font-semibold">
+                File Preview: {previewFile?.FileName}
+              </DialogTitle>
+              <Button
+                variant="outline"
+                onClick={handleCopyContent}
+                className="relative w-full sm:w-auto"
+              >
+                <span
+                  className={`flex items-center justify-center transition-opacity duration-300 ${isCopied ? "opacity-0" : "opacity-100"}`}
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy Content
+                </span>
+                <span
+                  className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${isCopied ? "opacity-100" : "opacity-0"}`}
+                >
+                  <Check className="h-4 w-4 mr-2 text-green-500" />
+                  Copied!
+                </span>
+              </Button>
+            </DialogHeader>
+          </div>
+          <div className="mt-4 flex-grow overflow-auto">
+            <pre className="h-full overflow-auto rounded-md bg-muted p-4 text-sm">
+              <code className="inline-block min-w-full whitespace-pre">
+                {previewFile?.Output.split("\n").map((line, index) => (
+                  <div key={index} className="flex">
+                    <span className="select-none inline-block w-12 mr-4 text-right text-muted-foreground">
+                      {index + 1}
+                    </span>
+                    <span>{line}</span>
+                  </div>
+                ))}
+              </code>
+            </pre>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

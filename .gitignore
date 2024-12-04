@@ -19,7 +19,7 @@
 *.out
 corban-c2
 frontendBuild/
-
+beaconFiles/
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
