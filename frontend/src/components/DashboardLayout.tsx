@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Link, useNavigate, Outlet } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Trash2, ExternalLink } from "lucide-react";
+import { Trash2, ExternalLink, RefreshCw } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   Table,
@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table";
-import { Topbar } from "./TopBar";
+import { Topbar } from "./Topbar";
 import { fetchBeacons, Beacon } from "../api/beacons";
 
 function DashboardLayoutComponent() {
@@ -52,6 +52,8 @@ function Dashboard() {
     data: beacons,
     isLoading,
     error,
+    refetch,
+    isFetching,
   } = useQuery<Beacon[], Error>({
     queryKey: ["beacons"],
     queryFn: fetchBeacons,
@@ -67,9 +69,6 @@ function Dashboard() {
 
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>An error occurred: {error.message}</div>;
-  if (beacons?.length === 0) {
-    return <div>No beacons found.</div>;
-  }
 
   return (
     <>
@@ -84,58 +83,87 @@ function Dashboard() {
                   <TableHead className="px-3 py-2">Beacon Name</TableHead>
                   <TableHead className="px-3 py-2">IP Address</TableHead>
                   <TableHead className="px-3 py-2">Status</TableHead>
-                  <TableHead className="px-3 py-2 text-center">
-                    Actions
+                  <TableHead className="px-3 py-2 w-80">
+                    <div className="flex items-center justify-between">
+                      <span className="flex-grow text-center">Actions</span>
+                      <Button
+                        onClick={() => refetch()}
+                        disabled={isFetching}
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 ml-2"
+                      >
+                        <RefreshCw
+                          className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
+                        />
+                        <span className="sr-only">
+                          {isFetching
+                            ? "Refreshing beacons"
+                            : "Refresh beacons"}
+                        </span>
+                      </Button>
+                    </div>
                   </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {beacons?.map((beacon, index) => (
-                  <TableRow key={beacon.beaconID} className="h-10">
-                    <TableCell className="font-medium px-3 py-2">
-                      {index + 1}
-                    </TableCell>
-                    <TableCell className="px-3 py-2">
-                      {beacon.beaconID}
-                    </TableCell>
-                    <TableCell className="px-3 py-2">
-                      {beacon.beaconExtIP}
-                    </TableCell>
-                    <TableCell className="px-3 py-2">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                          calculateStatus(beacon.lastUpdate) === "online"
-                            ? "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100"
-                            : "bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100"
-                        }`}
-                      >
-                        {calculateStatus(beacon.lastUpdate)}
-                      </span>
-                    </TableCell>
-                    <TableCell className="px-3 py-2">
-                      <div className="flex justify-center space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => viewBeaconDetails(beacon.beaconID)}
-                          className="h-7 px-2 text-xs"
+                {beacons && beacons.length > 0 ? (
+                  beacons.map((beacon, index) => (
+                    <TableRow key={beacon.beaconID} className="h-10">
+                      <TableCell className="font-medium px-3 py-2">
+                        {index + 1}
+                      </TableCell>
+                      <TableCell className="px-3 py-2">
+                        {beacon.beaconID}
+                      </TableCell>
+                      <TableCell className="px-3 py-2">
+                        {beacon.beaconExtIP}
+                      </TableCell>
+                      <TableCell className="px-3 py-2">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                            calculateStatus(beacon.lastUpdate) === "online"
+                              ? "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100"
+                              : "bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100"
+                          }`}
                         >
-                          <ExternalLink className="h-3 w-3 mr-1" />
-                          View Details
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => deleteBeacon(beacon.beaconID)}
-                          className="h-7 px-2 text-xs"
-                        >
-                          <Trash2 className="h-3 w-3 mr-1" />
-                          Delete
-                        </Button>
-                      </div>
+                          {calculateStatus(beacon.lastUpdate)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="px-3 py-2">
+                        <div className="flex justify-center space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => viewBeaconDetails(beacon.beaconID)}
+                            className="h-8 px-2 text-xs"
+                          >
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            View Details
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => deleteBeacon(beacon.beaconID)}
+                            className="h-8 px-2 text-xs"
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            Delete
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell
+                      colSpan={5}
+                      className="h-24 text-center text-muted-foreground"
+                    >
+                      No Beacons Found
                     </TableCell>
                   </TableRow>
-                )) ?? []}
+                )}
               </TableBody>
             </Table>
           </div>
