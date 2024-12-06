@@ -14,7 +14,7 @@ GO_BUILD_CMD=go build -o $(BINARY_NAME) .
 RUN_CMD=go run .
 
 # Define the default target
-all: build-frontend run
+test: build-frontend run
 
 # Define the build-frontend target
 build-frontend:

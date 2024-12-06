@@ -51,6 +51,7 @@ export default function BeaconDetailsPage() {
   const [command, setCommand] = useState("");
   const [previewFile, setPreviewFile] = useState<BeaconFile | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const {
     data: beaconData,
@@ -72,11 +73,12 @@ export default function BeaconDetailsPage() {
     enabled: !!id,
   });
 
-  if (isLoadingBeacon || isLoadingFiles) return <div>Loading...</div>;
-  if (beaconError) return <div>An error occurred: {beaconError.message}</div>;
-  if (filesError)
+  if (isLoadingBeacon) return <div>Loading beacon details...</div>;
+  if (beaconError)
     return (
-      <div>An error occurred while fetching files: {filesError.message}</div>
+      <div>
+        An error occurred while fetching beacon details: {beaconError.message}
+      </div>
     );
   if (!beaconData) return <div>No beacon data found</div>;
 
@@ -87,6 +89,7 @@ export default function BeaconDetailsPage() {
 
   const handlePreview = (file: BeaconFile) => {
     setPreviewFile(file);
+    setIsPreviewOpen(true);
   };
 
   const handleCopyContent = () => {
@@ -254,9 +257,17 @@ export default function BeaconDetailsPage() {
           <CardTitle>Beacon Files</CardTitle>
         </CardHeader>
         <CardContent>
-          <ul className="space-y-2">
-            {beaconFiles && beaconFiles.length > 0 ? (
-              beaconFiles.map((file, index) => (
+          {isLoadingFiles ? (
+            <div className="text-center py-4 text-muted-foreground">
+              Loading files...
+            </div>
+          ) : filesError ? (
+            <div className="text-center py-4 text-red-500">
+              Error loading files: {filesError.message}
+            </div>
+          ) : beaconFiles && beaconFiles.length > 0 ? (
+            <ul className="space-y-2">
+              {beaconFiles.map((file, index) => (
                 <li
                   key={index}
                   className="flex items-center justify-between p-2 bg-muted rounded-md"
@@ -291,57 +302,65 @@ export default function BeaconDetailsPage() {
                     </Button>
                   </div>
                 </li>
-              ))
-            ) : (
-              <li className="text-center text-muted-foreground">
-                No files found for this beacon
-              </li>
-            )}
-          </ul>
+              ))}
+            </ul>
+          ) : (
+            <div className="text-center py-4 text-muted-foreground">
+              No files available for this beacon
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      <Dialog open={!!previewFile} onOpenChange={() => setPreviewFile(null)}>
-        <DialogContent className="sm:max-w-[800px] max-h-[80vh] overflow-hidden flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] duration-300">
-          <div className="pt-4">
-            <DialogHeader className="flex-shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-2 sm:space-y-0">
-              <DialogTitle className="text-left text-lg font-semibold">
-                File Preview: {previewFile?.FileName}
-              </DialogTitle>
-              <Button
-                variant="outline"
-                onClick={handleCopyContent}
-                className="relative w-full sm:w-auto"
-              >
-                <span
-                  className={`flex items-center justify-center transition-opacity duration-300 ${isCopied ? "opacity-0" : "opacity-100"}`}
+      <Dialog
+        open={isPreviewOpen}
+        onOpenChange={(open) => {
+          setIsPreviewOpen(open);
+          if (!open) setPreviewFile(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[800px] max-h-[80vh] overflow-hidden flex flex-col">
+          {previewFile && (
+            <div className="pt-4 flex flex-col h-full">
+              <DialogHeader className="flex-shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-2 sm:space-y-0">
+                <DialogTitle className="text-left text-lg font-semibold">
+                  File Preview: {previewFile.FileName}
+                </DialogTitle>
+                <Button
+                  variant="outline"
+                  onClick={handleCopyContent}
+                  className="relative w-full sm:w-auto"
                 >
-                  <Copy className="h-4 w-4 mr-2" />
-                  Copy Content
-                </span>
-                <span
-                  className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${isCopied ? "opacity-100" : "opacity-0"}`}
-                >
-                  <Check className="h-4 w-4 mr-2 text-green-500" />
-                  Copied!
-                </span>
-              </Button>
-            </DialogHeader>
-          </div>
-          <div className="mt-4 flex-grow overflow-auto">
-            <pre className="h-full overflow-auto rounded-md bg-muted p-4 text-sm">
-              <code className="inline-block min-w-full whitespace-pre">
-                {previewFile?.Output.split("\n").map((line, index) => (
-                  <div key={index} className="flex">
-                    <span className="select-none inline-block w-12 mr-4 text-right text-muted-foreground">
-                      {index + 1}
-                    </span>
-                    <span>{line}</span>
-                  </div>
-                ))}
-              </code>
-            </pre>
-          </div>
+                  <span
+                    className={`flex items-center justify-center transition-opacity duration-300 ${isCopied ? "opacity-0" : "opacity-100"}`}
+                  >
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy Content
+                  </span>
+                  <span
+                    className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${isCopied ? "opacity-100" : "opacity-0"}`}
+                  >
+                    <Check className="h-4 w-4 mr-2 text-green-500" />
+                    Copied!
+                  </span>
+                </Button>
+              </DialogHeader>
+              <div className="mt-4 flex-grow overflow-hidden">
+                <pre className="h-full overflow-auto rounded-md bg-muted p-4 text-sm">
+                  <code className="inline-block min-w-full whitespace-pre">
+                    {previewFile.Output.split("\n").map((line, index) => (
+                      <div key={index} className="flex">
+                        <span className="select-none inline-block w-12 mr-4 text-right text-muted-foreground">
+                          {index + 1}
+                        </span>
+                        <span>{line}</span>
+                      </div>
+                    ))}
+                  </code>
+                </pre>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

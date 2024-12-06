@@ -1,0 +1,40 @@
+/* Holds Implant information and status */
+CREATE TABLE IF NOT EXISTS implants (
+    implant_ID TEXT PRIMARY KEY,
+    hostname TEXT,
+    private_ip TEXT,
+    public_ip TEXT,
+    os TEXT,
+    pid INTEGER,
+    user TEXT,
+    protection_name TEXT,
+    last_checkin INTEGER,
+    active BOOLEAN,
+    kill_date INTEGER
+);
+
+/* Holds Implant Tasks information */
+CREATE TABLE IF NOT EXISTS tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    implant_id TEXT,
+    task_id TEXT,
+    task_type INTEGER,
+    task_data BLOB,
+    completed BOOLEAN,
+    created_at INTEGER,
+    completed_at INTEGER,
+    task_result BLOB,
+    FOREIGN KEY (implant_id) REFERENCES implants(implant_ID)
+);
+
+/* Holds file information */
+CREATE TABLE IF NOT EXISTS files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    implant_id TEXT,
+    file_path TEXT,
+    file_name TEXT,
+    file_type TEXT,
+    file_size INTEGER,
+    created_at INTEGER,
+    FOREIGN KEY (implant_id) REFERENCES implants(implant_ID)
+);
