@@ -1,6 +1,5 @@
-/* Holds Implant information and status */
 CREATE TABLE IF NOT EXISTS implants (
-    implant_ID TEXT PRIMARY KEY,
+    implant_id TEXT PRIMARY KEY,
     hostname TEXT,
     private_ip TEXT,
     public_ip TEXT,
@@ -8,23 +7,31 @@ CREATE TABLE IF NOT EXISTS implants (
     pid INTEGER,
     user TEXT,
     protection_name TEXT,
-    last_checkin INTEGER,
+    last_check_in INTEGER,
     active BOOLEAN,
+    kill_date INTEGER /*BANG!*/
+);
+
+CREATE TABLE IF NOT EXISTS listeners (
+    listener_id TEXT PRIMARY KEY,
+    config BLOB,
+    host TEXT,
+    port INTEGER,
+    created_at INTEGER,
     kill_date INTEGER
 );
 
 /* Holds Implant Tasks information */
 CREATE TABLE IF NOT EXISTS tasks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT PRIMARY KEY,
     implant_id TEXT,
-    task_id TEXT,
     task_type INTEGER,
     task_data BLOB,
-    completed BOOLEAN,
     created_at INTEGER,
+    completed BOOLEAN,
     completed_at INTEGER,
     task_result BLOB,
-    FOREIGN KEY (implant_id) REFERENCES implants(implant_ID)
+    FOREIGN KEY (implant_id) REFERENCES implants (implant_id)
 );
 
 /* Holds file information */
@@ -36,5 +43,5 @@ CREATE TABLE IF NOT EXISTS files (
     file_type TEXT,
     file_size INTEGER,
     created_at INTEGER,
-    FOREIGN KEY (implant_id) REFERENCES implants(implant_ID)
+    FOREIGN KEY (implant_id) REFERENCES implants (implant_id)
 );

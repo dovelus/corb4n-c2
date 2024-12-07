@@ -15,7 +15,7 @@ import (
 
 // Embed the database schema
 //
-//go:embed sql.schema
+//go:embed schema.sql
 var schema string
 
 var dbConn *sql.DB
@@ -33,7 +33,7 @@ func InitDB() {
 	if err != nil {
 		logger.Fatal("Error getting user home directory: ", err)
 	}
-	dbDir := filepath.Join(homeDir, "Programming", "corb4n-c2", ".corb4n-c2")
+	dbDir := filepath.Join(homeDir, "Programming", "corb4n-c2", ".corb4n-c2") // Change this to the correct path when in production
 	dbPath = filepath.Join(dbDir, "corb4n-c2.db")
 	fmt.Println(dbPath)
 

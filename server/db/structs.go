@@ -1,5 +1,7 @@
 package db
 
+const MAX_N_TASKS = 100
+
 type Implant_info struct {
 	ID          string
 	Hostname    string
@@ -8,8 +10,8 @@ type Implant_info struct {
 	Os          string
 	ProcessID   uint64
 	ProcessUser string
-	ProtName    string
-	LastChekcIn int64
+	ProtName    string // Name of the EDR/AV present on the machine
+	LastCheckIn int64
 	Active      bool
 	KillDate    int64
 }
@@ -25,6 +27,16 @@ type Implant_Task struct {
 	TaskResult  []byte
 }
 
+type Listener_info struct {
+	ListenerID string
+	Config     []byte
+	Host       string
+	Port       uint16
+	CreatedAt  int64
+	KillDate   int64
+}
+
+// Files are stored on the C2 server
 type File_info struct {
 	ImplantID string
 	FileName  string
