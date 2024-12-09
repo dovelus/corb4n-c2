@@ -11,6 +11,8 @@
 *.app
 *.bin
 *.run
+*.crt
+*.key
 
 # Test binary, built with `go test -c`
 *.test
@@ -20,6 +22,7 @@
 corban-c2
 frontendBuild/
 beaconFiles/
+venv/
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
