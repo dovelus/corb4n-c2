@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/gorilla/mux"
 )
 
 var logger = log.NewWithOptions(os.Stderr, log.Options{
@@ -64,12 +65,16 @@ func logRequest(handler http.Handler) http.Handler {
 
 // StartServer starts the HTTPS server with the given TLS configuration
 func StartServer(addr string, cfg *tls.Config) {
+	r := mux.NewRouter()
+	r.Use(logRequest)
+	r.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Add("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+		w.Write([]byte("This is an example server.\n"))
+	})
+
 	srv := &http.Server{
-		Addr: addr,
-		Handler: logRequest(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			w.Header().Add("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
-			w.Write([]byte("This is an example server.\n"))
-		})),
+		Addr:         addr,
+		Handler:      r,
 		TLSConfig:    cfg,
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
 	}

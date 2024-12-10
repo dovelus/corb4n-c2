@@ -6,6 +6,8 @@ import (
 	"github.com/dovelus/corb4n-c2/server/transport"
 )
 
+
+
 func main() {
 	// Load server certificate and key
 	serverCert, err := transport.LoadServerCertificate("certs/server.crt", "certs/server.key")
