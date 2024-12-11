@@ -5,23 +5,23 @@ import (
 	"errors"
 	"fmt"
 	"time"
-)
 
-var ErrNoResults error = errors.New("no results found")
+	"github.com/dovelus/corb4n-c2/server/comunication"
+)
 
 // Get all active implants
 func GetAllImplants() ([]*Implant_info, error) {
-	logger.Info("Getting all implants: SELECT * FROM implants")
+	comunication.Logger.Info("Getting all implants: SELECT * FROM implants")
 	statement, err := dbConn.Prepare("SELECT * FROM implants")
 	if err != nil {
-		logger.Error("Error preparing statement: ", err)
+		comunication.Logger.Error("Error preparing statement: ", err)
 		return nil, err
 	}
 	defer statement.Close()
 
 	rows, err := statement.Query()
 	if err != nil {
-		logger.Error("Error querying database: ", err)
+		comunication.Logger.Error("Error querying database: ", err)
 		return nil, err
 	}
 
@@ -41,13 +41,13 @@ func GetAllImplants() ([]*Implant_info, error) {
 			&Info.Active,
 			&Info.KillDate)
 		if err != nil {
-			logger.Error("Error scanning row: ", err)
+			comunication.Logger.Error("Error scanning row: ", err)
 			return nil, err
 		}
 		implants = append(implants, Info)
 	}
 	if len(implants) == 0 {
-		return nil, ErrNoResults
+		return nil, comunication.ErrNoResults
 	}
 
 	return implants, nil
@@ -55,10 +55,10 @@ func GetAllImplants() ([]*Implant_info, error) {
 
 // Get specific implant informatio for a given ID
 func GetImplantByID(ID string) (*Implant_info, error) {
-	logger.Info(fmt.Sprintf("SELECT * FROM implants WHERE implant_id = '%s'", ID))
+	comunication.Logger.Info(fmt.Sprintf("SELECT * FROM implants WHERE implant_id = '%s'", ID))
 	statement, err := dbConn.Prepare("SELECT * FROM implants WHERE implant_id = ?")
 	if err != nil {
-		logger.Error("Error preparing statement: ", err)
+		comunication.Logger.Error("Error preparing statement: ", err)
 		return nil, err
 	}
 	defer statement.Close()
@@ -78,7 +78,7 @@ func GetImplantByID(ID string) (*Implant_info, error) {
 		&Info.Active,
 		&Info.KillDate)
 	if err != nil {
-		logger.Error("Error scanning row: ", err)
+		comunication.Logger.Error("Error scanning row: ", err)
 		return nil, err
 	}
 
@@ -86,7 +86,29 @@ func GetImplantByID(ID string) (*Implant_info, error) {
 }
 
 func AddImplant(info *Implant_info) error {
-	logger.Info(fmt.Sprintf("INSERT INTO implants VALUES ('%s', '%s', '%s', '%s', '%s', %d, '%s', '%s', %d, %t, %d)",
+	// Check if the implant already exists
+	comunication.Logger.Info(fmt.Sprintf("Checking if implant with ID '%s' already exists", info.ID))
+	statement, err := dbConn.Prepare("SELECT COUNT(*) FROM implants WHERE implant_id = ?")
+	if err != nil {
+		comunication.Logger.Error("Error preparing statement: ", err)
+		return err
+	}
+	defer statement.Close()
+
+	var count int
+	err = statement.QueryRow(info.ID).Scan(&count)
+	if err != nil {
+		comunication.Logger.Error("Error querying database: ", err)
+		return err
+	}
+
+	if count > 0 {
+		comunication.Logger.Warn(fmt.Sprintf("Implant with ID '%s' already exists", info.ID))
+		return comunication.ErrImplantExists
+	}
+
+	// Add the implant to the database
+	comunication.Logger.Info(fmt.Sprintf("INSERT INTO implants VALUES ('%s', '%s', '%s', '%s', '%s', %d, '%s', '%s', %d, %t, %d)",
 		info.ID,
 		info.Hostname,
 		info.IntIP,
@@ -99,9 +121,9 @@ func AddImplant(info *Implant_info) error {
 		info.Active,
 		info.KillDate))
 
-	statement, err := dbConn.Prepare("INSERT INTO implants VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+	statement, err = dbConn.Prepare("INSERT INTO implants VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
-		logger.Error("Error preparing statement: ", err)
+		comunication.Logger.Error("Error preparing statement: ", err)
 		return err
 	}
 	defer statement.Close()
@@ -120,7 +142,7 @@ func AddImplant(info *Implant_info) error {
 		info.KillDate)
 
 	if err != nil {
-		logger.Error("Error executing query: ", err)
+		comunication.Logger.Error("Error executing query: ", err)
 		return err
 	}
 
@@ -129,49 +151,49 @@ func AddImplant(info *Implant_info) error {
 
 // Given an implant ID, removes all information from the database (implant, task)
 func RemoveImplant(ID string) error {
-	logger.Info(fmt.Sprintf("DELETE FROM implants WHERE ID = '%s'", ID))
-	logger.Info(fmt.Sprintf("DELETE FROM tasks WHERE implant_id = '%s'", ID))
+	comunication.Logger.Info(fmt.Sprintf("DELETE FROM implants WHERE implant_id = '%s'", ID))
+	comunication.Logger.Info(fmt.Sprintf("DELETE FROM tasks WHERE implant_id = '%s'", ID))
 
-	statement_implants, err := dbConn.Prepare("DELETE FROM implants WHERE ID = ?")
+	statement_implants, err := dbConn.Prepare("DELETE FROM implants WHERE implant_id = ?")
 	if err != nil {
-		logger.Error("Error preparing statement for implants: ", err)
+		comunication.Logger.Error("Error preparing statement for implants: ", err)
 		return err
 	}
 	defer statement_implants.Close()
 
 	statement_tasks, err := dbConn.Prepare("DELETE FROM tasks WHERE implant_id = ?")
 	if err != nil {
-		logger.Error("Error preparing statement for tasks: ", err)
+		comunication.Logger.Error("Error preparing statement for tasks: ", err)
 		return err
 	}
 	defer statement_tasks.Close()
 
 	res_implants, err := statement_implants.Exec(ID)
 	if err != nil {
-		logger.Error("Error executing query for implants: ", err)
+		comunication.Logger.Error("Error executing query for implants: ", err)
 		return err
 	}
 
 	res_tasks, err := statement_tasks.Exec(ID)
 	if err != nil {
-		logger.Error("Error executing query for tasks: ", err)
+		comunication.Logger.Error("Error executing query for tasks: ", err)
 		return err
 	}
 
 	implants_affected, err := res_implants.RowsAffected()
 	if err != nil {
-		logger.Error("Error getting rows affected: ", err)
+		comunication.Logger.Error("Error getting rows affected: ", err)
 		return err
 	}
 	tasks_affected, err := res_tasks.RowsAffected()
 	if err != nil {
-		logger.Error("Error getting rows affected: ", err)
+		comunication.Logger.Error("Error getting rows affected: ", err)
 		return err
 	}
 
 	if implants_affected == 0 && tasks_affected == 0 {
-		logger.Warn("No rows affected")
-		return ErrNoResults
+		comunication.Logger.Warn("No rows affected")
+		return comunication.ErrNoResults
 	}
 
 	return nil
@@ -179,26 +201,28 @@ func RemoveImplant(ID string) error {
 
 // Given an implant ID, sets the active field to false
 func SetImplantStatus(ID string, status bool) error {
-	logger.Info(fmt.Sprintf("UPDATE implants SET active = %t WHERE implant_id = '%s'", status, ID))
+	comunication.Logger.Info(fmt.Sprintf("UPDATE implants SET active = %t WHERE implant_id = '%s'", status, ID))
 	statement, err := dbConn.Prepare("UPDATE implants SET active = ? WHERE implant_id = ?")
 	if err != nil {
-		logger.Error("Error preparing statement for implants: ", err)
+		comunication.Logger.Error("Error preparing statement for implants: ", err)
 	}
 	defer statement.Close()
 
 	res, err := statement.Exec(status, ID)
 	if err != nil {
-		logger.Error("Error executing query for implants: ", err)
+		comunication.Logger.Error("Error executing query for implants: ", err)
+		return err
 	}
 
 	rows, err := res.RowsAffected()
 	if err != nil {
-		logger.Error("Error getting rows affected: ", err)
+		comunication.Logger.Error("Error getting rows affected: ", err)
+		return err
 	}
 
 	if rows == 0 {
-		logger.Warn("No rows affected")
-		return ErrNoResults
+		comunication.Logger.Warn("No rows affected")
+		return comunication.ErrNoResults
 	}
 
 	return nil
@@ -206,10 +230,10 @@ func SetImplantStatus(ID string, status bool) error {
 
 // Given an implant ID, returns the status of the implant
 func GetImplantStatus(ID string) (bool, error) {
-	logger.Info(fmt.Sprintf("SELECT active FROM implants WHERE implant_id= '%s'", ID))
+	comunication.Logger.Info(fmt.Sprintf("SELECT active FROM implants WHERE implant_id= '%s'", ID))
 	statement, err := dbConn.Prepare("SELECT active FROM implants WHERE implant_id = ?")
 	if err != nil {
-		logger.Error("Error preparing statement for implants: ", err)
+		comunication.Logger.Error("Error preparing statement for implants: ", err)
 		return false, err
 	}
 	defer statement.Close()
@@ -218,7 +242,7 @@ func GetImplantStatus(ID string) (bool, error) {
 	var status bool
 	err = row.Scan(&status)
 	if err != nil {
-		logger.Error("Error scanning row: ", err)
+		comunication.Logger.Error("Error scanning row: ", err)
 		return false, err
 	}
 
@@ -228,26 +252,28 @@ func GetImplantStatus(ID string) (bool, error) {
 // Given an implant ID, sets the killDate field to the current time
 func UpdateImplantKillDate(ID string) error {
 	var kill_time int64 = time.Now().Unix()
-	logger.Info(fmt.Sprintf("UPDATE implants SET kill_date = %d WHERE implant_id = '%s'", kill_time, ID))
+	comunication.Logger.Info(fmt.Sprintf("UPDATE implants SET kill_date = %d WHERE implant_id = '%s'", kill_time, ID))
 	statement, err := dbConn.Prepare("UPDATE implants SET kill_date = ? WHERE implant_id = ?")
 	if err != nil {
-		logger.Error("Error preparing statement for implants: ", err)
+		comunication.Logger.Error("Error preparing statement for implants: ", err)
 	}
 	defer statement.Close()
 
 	res, err := statement.Exec(kill_time, ID)
 	if err != nil {
-		logger.Error("Error executing query for implants: ", err)
+		comunication.Logger.Error("Error executing query for implants: ", err)
+		return err
 	}
 
 	rows, err := res.RowsAffected()
 	if err != nil {
-		logger.Error("Error getting rows affected: ", err)
+		comunication.Logger.Error("Error getting rows affected: ", err)
+		return err
 	}
 
 	if rows == 0 {
-		logger.Warn("No rows affected")
-		return ErrNoResults
+		comunication.Logger.Warn("No rows affected")
+		return comunication.ErrNoResults
 	}
 
 	return nil
@@ -255,7 +281,7 @@ func UpdateImplantKillDate(ID string) error {
 
 // Given an implant ID, returns all its tasks
 func GetImplantTasks(ID string, completed bool) ([]*Implant_Task, error) {
-	logger.Info(fmt.Sprintf("SELECT * FROM tasks WHERE implant_id='%s' AND completed=%t", ID, completed))
+	comunication.Logger.Info(fmt.Sprintf("SELECT * FROM tasks WHERE implant_id='%s' AND completed=%t", ID, completed))
 	var statement *sql.Stmt
 	var err error
 	if completed {
@@ -264,14 +290,14 @@ func GetImplantTasks(ID string, completed bool) ([]*Implant_Task, error) {
 		statement, err = dbConn.Prepare("SELECT * FROM tasks WHERE implant_id = ? AND completed = FALSE")
 	}
 	if err != nil {
-		logger.Error("Error preparing statement for tasks: ", err)
+		comunication.Logger.Error("Error preparing statement for tasks: ", err)
 		return nil, err
 	}
 	defer statement.Close()
 
 	rows, err := statement.Query(ID)
 	if err != nil {
-		logger.Error("Error executing query for tasks: ", err)
+		comunication.Logger.Error("Error executing query for tasks: ", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -289,14 +315,14 @@ func GetImplantTasks(ID string, completed bool) ([]*Implant_Task, error) {
 			&task.CompletedAt,
 			&task.TaskResult)
 		if err != nil {
-			logger.Error("Error scanning row: ", err)
+			comunication.Logger.Error("Error scanning row: ", err)
 			return nil, err
 		}
 		tasks = append(tasks, task)
 	}
 
 	if len(tasks) == 0 {
-		return nil, ErrNoResults
+		return nil, comunication.ErrNoResults
 	}
 
 	return tasks, nil
@@ -304,7 +330,7 @@ func GetImplantTasks(ID string, completed bool) ([]*Implant_Task, error) {
 
 // Returns all tasks for all implants
 func GetAllTasks(completed bool) ([]*Implant_Task, error) {
-	logger.Info(fmt.Sprintf("SELECT * FROM tasks WHERE completed=%t", completed))
+	comunication.Logger.Info(fmt.Sprintf("SELECT * FROM tasks WHERE completed=%t", completed))
 	var statement *sql.Stmt
 	var err error
 	if completed {
@@ -313,14 +339,14 @@ func GetAllTasks(completed bool) ([]*Implant_Task, error) {
 		statement, err = dbConn.Prepare("SELECT * FROM tasks WHERE completed = FALSE")
 	}
 	if err != nil {
-		logger.Error("Error preparing statement for tasks: ", err)
+		comunication.Logger.Error("Error preparing statement for tasks: ", err)
 		return nil, err
 	}
 	defer statement.Close()
 
 	rows, err := statement.Query()
 	if err != nil {
-		logger.Error("Error executing query for tasks: ", err)
+		comunication.Logger.Error("Error executing query for tasks: ", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -338,14 +364,14 @@ func GetAllTasks(completed bool) ([]*Implant_Task, error) {
 			&task.CompletedAt,
 			&task.TaskResult)
 		if err != nil {
-			logger.Error("Error scanning row: ", err)
+			comunication.Logger.Error("Error scanning row: ", err)
 			return nil, err
 		}
 		tasks = append(tasks, task)
 	}
 
 	if len(tasks) == 0 {
-		return nil, ErrNoResults
+		return nil, comunication.ErrNoResults
 	}
 
 	return tasks, nil
@@ -353,7 +379,7 @@ func GetAllTasks(completed bool) ([]*Implant_Task, error) {
 
 // Adds a task to the database
 func AddTask(task *Implant_Task) error {
-	logger.Info(fmt.Sprintf("INSERT INTO tasks VALUES ('%s', '%s', %d, '%s', %d, %t, %d, '%s')",
+	comunication.Logger.Info(fmt.Sprintf("INSERT INTO tasks VALUES ('%s', '%s', %d, '%s', %d, %t, %d, '%s')",
 		task.TaskID,
 		task.ImplantID,
 		task.TaskType,
@@ -365,7 +391,7 @@ func AddTask(task *Implant_Task) error {
 
 	statement, err := dbConn.Prepare("INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
-		logger.Error("Error preparing statement: ", err)
+		comunication.Logger.Error("Error preparing statement: ", err)
 		return err
 	}
 	defer statement.Close()
@@ -381,7 +407,7 @@ func AddTask(task *Implant_Task) error {
 		task.TaskResult)
 
 	if err != nil {
-		logger.Error("Error executing query: ", err)
+		comunication.Logger.Error("Error executing query: ", err)
 		return err
 	}
 
@@ -390,27 +416,27 @@ func AddTask(task *Implant_Task) error {
 
 // Removes non completed tasks for a given implantid and taskid
 func RemovePendingTasksImplant(ID string, taskID string) error {
-	logger.Info(fmt.Sprintf("DELETE FROM tasks WHERE implant_id = '%s' AND task_id = '%s' AND completed = FALSE", ID, taskID))
+	comunication.Logger.Info(fmt.Sprintf("DELETE FROM tasks WHERE implant_id = '%s' AND task_id = '%s' AND completed = FALSE", ID, taskID))
 	statement, err := dbConn.Prepare("DELETE FROM tasks WHERE implant_id = ? AND task_id = ? AND completed = FALSE")
 	if err != nil {
-		logger.Error("Error preparing statement: ", err)
+		comunication.Logger.Error("Error preparing statement: ", err)
 		return err
 	}
 	defer statement.Close()
 
 	resp, err := statement.Exec(ID, taskID)
 	if err != nil {
-		logger.Error("Error executing query: ", err)
+		comunication.Logger.Error("Error executing query: ", err)
 		return err
 	}
 
 	rows, err := resp.RowsAffected()
 	if err != nil {
-		logger.Error("Error getting rows affected for tasks: ", err)
+		comunication.Logger.Error("Error getting rows affected for tasks: ", err)
 	}
 
 	if rows == 0 {
-		logger.Warn("No rows affected")
+		comunication.Logger.Warn("No rows affected")
 		return errors.New(fmt.Sprintf("No task with ID '%s' for implant '%s'", taskID, ID))
 	}
 
@@ -418,10 +444,10 @@ func RemovePendingTasksImplant(ID string, taskID string) error {
 }
 
 func GetTask(taskID string) (*Implant_Task, error) {
-	logger.Info(fmt.Sprintf("SELECT * FROM tasks WHERE task_id = '%s'", taskID))
+	comunication.Logger.Info(fmt.Sprintf("SELECT * FROM tasks WHERE task_id = '%s'", taskID))
 	statement, err := dbConn.Prepare("SELECT * FROM tasks WHERE task_id = ?")
 	if err != nil {
-		logger.Error("Error preparing statement for tasks: ", err)
+		comunication.Logger.Error("Error preparing statement for tasks: ", err)
 		return nil, err
 	}
 	defer statement.Close()
@@ -440,10 +466,10 @@ func GetTask(taskID string) (*Implant_Task, error) {
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			logger.Error("No task found with the given taskID: ", taskID)
-			return nil, ErrNoResults
+			comunication.Logger.Error("No task found with the given taskID: ", taskID)
+			return nil, comunication.ErrNoResults
 		}
-		logger.Error("Error scanning row: ", err)
+		comunication.Logger.Error("Error scanning row: ", err)
 		return nil, err
 	}
 
@@ -452,27 +478,27 @@ func GetTask(taskID string) (*Implant_Task, error) {
 
 // Remove task based on taskID
 func RemoveTask(taskID string) error {
-	logger.Info(fmt.Sprintf("DELETE FROM tasks WHERE task_id = '%s'", taskID))
+	comunication.Logger.Info(fmt.Sprintf("DELETE FROM tasks WHERE task_id = '%s'", taskID))
 	statement, err := dbConn.Prepare("DELETE FROM tasks WHERE task_id = ?")
 	if err != nil {
-		logger.Error("Error preparing statement for tasks: ", err)
+		comunication.Logger.Error("Error preparing statement for tasks: ", err)
 		return err
 	}
 	defer statement.Close()
 
 	resp, err := statement.Exec(taskID)
 	if err != nil {
-		logger.Error("Error executing query: ", err)
+		comunication.Logger.Error("Error executing query: ", err)
 		return err
 	}
 
 	rows, err := resp.RowsAffected()
 	if err != nil {
-		logger.Error("Error getting rows affected for tasks: ", err)
+		comunication.Logger.Error("Error getting rows affected for tasks: ", err)
 	}
 
 	if rows == 0 {
-		logger.Warn("No rows affected")
+		comunication.Logger.Warn("No rows affected")
 		return errors.New(fmt.Sprintf("No database entry with ID '%s'", taskID))
 	}
 
@@ -482,27 +508,27 @@ func RemoveTask(taskID string) error {
 // Change status of tast to completed
 func CompleteTask(taskID string) error {
 	var complete_time int64 = time.Now().Unix()
-	logger.Info(fmt.Sprintf("UPDATE tasks SET completed = TRUE, completed_at = %d WHERE task_id = '%s'", complete_time, taskID))
+	comunication.Logger.Info(fmt.Sprintf("UPDATE tasks SET completed = TRUE, completed_at = %d WHERE task_id = '%s'", complete_time, taskID))
 	statement, err := dbConn.Prepare("UPDATE tasks SET completed = TRUE, completed_at = ? WHERE task_id = ?")
 	if err != nil {
-		logger.Error("Error preparing statement for tasks: ", err)
+		comunication.Logger.Error("Error preparing statement for tasks: ", err)
 		return err
 	}
 	defer statement.Close()
 
 	resp, err := statement.Exec(complete_time, taskID)
 	if err != nil {
-		logger.Error("Error executing query: ", err)
+		comunication.Logger.Error("Error executing query: ", err)
 		return err
 	}
 
 	rows, err := resp.RowsAffected()
 	if err != nil {
-		logger.Error("Error getting rows affected for tasks: ", err)
+		comunication.Logger.Error("Error getting rows affected for tasks: ", err)
 	}
 
 	if rows == 0 {
-		logger.Warn("No rows affected")
+		comunication.Logger.Warn("No rows affected")
 		return errors.New(fmt.Sprintf("No task with ID '%s'", taskID))
 	}
 
@@ -512,27 +538,27 @@ func CompleteTask(taskID string) error {
 // Updates last checkin time for an implant
 func UpdateImplantCheckin(ID string) error {
 	var checkin_time int64 = time.Now().Unix()
-	logger.Info(fmt.Sprintf("UPDATE implants SET last_checkin = %d WHERE implant_id = '%s'", checkin_time, ID))
+	comunication.Logger.Info(fmt.Sprintf("UPDATE implants SET last_checkin = %d WHERE implant_id = '%s'", checkin_time, ID))
 	statement, err := dbConn.Prepare("UPDATE implants SET last_check_in = ? WHERE implant_id = ?")
 	if err != nil {
-		logger.Error("Error preparing statement for implants: ", err)
+		comunication.Logger.Error("Error preparing statement for implants: ", err)
 		return err
 	}
 	defer statement.Close()
 
 	resp, err := statement.Exec(checkin_time, ID)
 	if err != nil {
-		logger.Error("Error executing query: ", err)
+		comunication.Logger.Error("Error executing query: ", err)
 		return err
 	}
 
 	rows, err := resp.RowsAffected()
 	if err != nil {
-		logger.Error("Error getting rows affected for implants: ", err)
+		comunication.Logger.Error("Error getting rows affected for implants: ", err)
 	}
 
 	if rows == 0 {
-		logger.Warn("No rows affected")
+		comunication.Logger.Warn("No rows affected")
 		return errors.New(fmt.Sprintf("No implant with ID '%s'", ID))
 	}
 
@@ -541,17 +567,17 @@ func UpdateImplantCheckin(ID string) error {
 
 // Get all listeners
 func GetAllListeners() ([]*Listener_info, error) {
-	logger.Info("SELECT * FROM listeners")
+	comunication.Logger.Info("SELECT * FROM listeners")
 	statement, err := dbConn.Prepare("SELECT * FROM listeners")
 	if err != nil {
-		logger.Error("Error preparing statement: ", err)
+		comunication.Logger.Error("Error preparing statement: ", err)
 		return nil, err
 	}
 	defer statement.Close()
 
 	rows, err := statement.Query()
 	if err != nil {
-		logger.Error("Error querying database: ", err)
+		comunication.Logger.Error("Error querying database: ", err)
 		return nil, err
 	}
 
@@ -566,13 +592,13 @@ func GetAllListeners() ([]*Listener_info, error) {
 			&Info.CreatedAt,
 			&Info.KillDate)
 		if err != nil {
-			logger.Error("Error scanning row: ", err)
+			comunication.Logger.Error("Error scanning row: ", err)
 			return nil, err
 		}
 		listeners = append(listeners, Info)
 	}
 	if len(listeners) == 0 {
-		return nil, ErrNoResults
+		return nil, comunication.ErrNoResults
 	}
 
 	return listeners, nil
@@ -580,10 +606,10 @@ func GetAllListeners() ([]*Listener_info, error) {
 
 // Get listener by ID
 func GetListenerByID(ID string) (*Listener_info, error) {
-	logger.Info(fmt.Sprintf("SELECT * FROM listeners WHERE listener_id = '%s'", ID))
+	comunication.Logger.Info(fmt.Sprintf("SELECT * FROM listeners WHERE listener_id = '%s'", ID))
 	statement, err := dbConn.Prepare("SELECT * FROM listeners WHERE listener_id = ?")
 	if err != nil {
-		logger.Error("Error preparing statement: ", err)
+		comunication.Logger.Error("Error preparing statement: ", err)
 		return nil, err
 	}
 	defer statement.Close()
@@ -598,7 +624,7 @@ func GetListenerByID(ID string) (*Listener_info, error) {
 		&Info.CreatedAt,
 		&Info.KillDate)
 	if err != nil {
-		logger.Error("Error scanning row: ", err)
+		comunication.Logger.Error("Error scanning row: ", err)
 		return nil, err
 	}
 
@@ -607,7 +633,7 @@ func GetListenerByID(ID string) (*Listener_info, error) {
 
 // Add a listener to the database
 func AddListener(info *Listener_info) error {
-	logger.Info(fmt.Sprintf("INSERT INTO listeners VALUES ('%s', '%s', '%s', %d, %d, %d)",
+	comunication.Logger.Info(fmt.Sprintf("INSERT INTO listeners VALUES ('%s', '%s', '%s', %d, %d, %d)",
 		info.ListenerID,
 		info.Config,
 		info.Host,
@@ -617,7 +643,7 @@ func AddListener(info *Listener_info) error {
 
 	statement, err := dbConn.Prepare("INSERT INTO listeners VALUES (?, ?, ?, ?, ?, ?)")
 	if err != nil {
-		logger.Error("Error preparing statement: ", err)
+		comunication.Logger.Error("Error preparing statement: ", err)
 		return err
 	}
 	defer statement.Close()
@@ -631,7 +657,7 @@ func AddListener(info *Listener_info) error {
 		info.KillDate)
 
 	if err != nil {
-		logger.Error("Error executing query: ", err)
+		comunication.Logger.Error("Error executing query: ", err)
 		return err
 	}
 
@@ -640,27 +666,27 @@ func AddListener(info *Listener_info) error {
 
 // Remove listener by ID
 func RemoveListener(ID string) error {
-	logger.Info(fmt.Sprintf("DELETE FROM listeners WHERE listener_id = '%s'", ID))
+	comunication.Logger.Info(fmt.Sprintf("DELETE FROM listeners WHERE listener_id = '%s'", ID))
 	statement, err := dbConn.Prepare("DELETE FROM listeners WHERE listener_id = ?")
 	if err != nil {
-		logger.Error("Error preparing statement: ", err)
+		comunication.Logger.Error("Error preparing statement: ", err)
 		return err
 	}
 	defer statement.Close()
 
 	resp, err := statement.Exec(ID)
 	if err != nil {
-		logger.Error("Error executing query: ", err)
+		comunication.Logger.Error("Error executing query: ", err)
 		return err
 	}
 
 	rows, err := resp.RowsAffected()
 	if err != nil {
-		logger.Error("Error getting rows affected: ", err)
+		comunication.Logger.Error("Error getting rows affected: ", err)
 	}
 
 	if rows == 0 {
-		logger.Warn("No rows affected")
+		comunication.Logger.Warn("No rows affected")
 		return errors.New(fmt.Sprintf("No listener with ID '%s'", ID))
 	}
 
@@ -670,27 +696,27 @@ func RemoveListener(ID string) error {
 // Updates listener kill date
 func UpdateListenerKillDate(ID string) error {
 	var kill_time int64 = time.Now().Unix()
-	logger.Info(fmt.Sprintf("UPDATE listeners SET kill_date = %d WHERE listener_id = '%s'", kill_time, ID))
+	comunication.Logger.Info(fmt.Sprintf("UPDATE listeners SET kill_date = %d WHERE listener_id = '%s'", kill_time, ID))
 	statement, err := dbConn.Prepare("UPDATE listeners SET kill_date = ? WHERE listener_id = ?")
 	if err != nil {
-		logger.Error("Error preparing statement: ", err)
+		comunication.Logger.Error("Error preparing statement: ", err)
 		return err
 	}
 	defer statement.Close()
 
 	resp, err := statement.Exec(kill_time, ID)
 	if err != nil {
-		logger.Error("Error executing query: ", err)
+		comunication.Logger.Error("Error executing query: ", err)
 		return err
 	}
 
 	rows, err := resp.RowsAffected()
 	if err != nil {
-		logger.Error("Error getting rows affected: ", err)
+		comunication.Logger.Error("Error getting rows affected: ", err)
 	}
 
 	if rows == 0 {
-		logger.Warn("No rows affected")
+		comunication.Logger.Warn("No rows affected")
 		return errors.New(fmt.Sprintf("No listener with ID '%s'", ID))
 	}
 
@@ -699,7 +725,7 @@ func UpdateListenerKillDate(ID string) error {
 
 // Add file to the database
 func AddFile(info *File_info) error {
-	logger.Info(fmt.Sprintf("INSERT INTO files (implant_id, file_path, file_name, file_type, file_size, created_at) VALUES ('%s', '%s', '%s', '%s', %d, %d)",
+	comunication.Logger.Info(fmt.Sprintf("INSERT INTO files (implant_id, file_path, file_name, file_type, file_size, created_at) VALUES ('%s', '%s', '%s', '%s', %d, %d)",
 		info.ImplantID,
 		info.FilePath,
 		info.FileName,
@@ -709,7 +735,7 @@ func AddFile(info *File_info) error {
 
 	statement, err := dbConn.Prepare("INSERT INTO files (implant_id, file_path, file_name, file_type, file_size, created_at) VALUES (?, ?, ?, ?, ?, ?)")
 	if err != nil {
-		logger.Error("Error preparing statement: ", err)
+		comunication.Logger.Error("Error preparing statement: ", err)
 		return err
 	}
 	defer statement.Close()
@@ -723,7 +749,7 @@ func AddFile(info *File_info) error {
 		info.CreatedAt)
 
 	if err != nil {
-		logger.Error("Error executing query: ", err)
+		comunication.Logger.Error("Error executing query: ", err)
 		return err
 	}
 
@@ -732,17 +758,17 @@ func AddFile(info *File_info) error {
 
 // Get all files
 func GetAllFiles() ([]*File_info, error) {
-	logger.Info("SELECT * FROM files")
+	comunication.Logger.Info("SELECT * FROM files")
 	statement, err := dbConn.Prepare("SELECT * FROM files")
 	if err != nil {
-		logger.Error("Error preparing statement: ", err)
+		comunication.Logger.Error("Error preparing statement: ", err)
 		return nil, err
 	}
 	defer statement.Close()
 
 	rows, err := statement.Query()
 	if err != nil {
-		logger.Error("Error querying database: ", err)
+		comunication.Logger.Error("Error querying database: ", err)
 		return nil, err
 	}
 
@@ -759,31 +785,31 @@ func GetAllFiles() ([]*File_info, error) {
 			&Info.FileSize,
 			&Info.CreatedAt)
 		if err != nil {
-			logger.Error("Error scanning row: ", err)
+			comunication.Logger.Error("Error scanning row: ", err)
 			return nil, err
 		}
 		files = append(files, Info)
 	}
 	if len(files) == 0 {
-		return nil, ErrNoResults
+		return nil, comunication.ErrNoResults
 	}
 
 	return files, nil
 }
 
 // Get file by implant ID
-func GetFileByImplantID(ID string) ([]*File_info, error) {
-	logger.Info(fmt.Sprintf("SELECT * FROM files WHERE implant_id = '%s'", ID))
+func GetFilesByImplantID(ID string) ([]*File_info, error) {
+	comunication.Logger.Info(fmt.Sprintf("SELECT * FROM files WHERE implant_id = '%s'", ID))
 	statement, err := dbConn.Prepare("SELECT * FROM files WHERE implant_id = ?")
 	if err != nil {
-		logger.Error("Error preparing statement: ", err)
+		comunication.Logger.Error("Error preparing statement: ", err)
 		return nil, err
 	}
 	defer statement.Close()
 
 	rows, err := statement.Query(ID)
 	if err != nil {
-		logger.Error("Error querying database: ", err)
+		comunication.Logger.Error("Error querying database: ", err)
 		return nil, err
 	}
 
@@ -800,13 +826,13 @@ func GetFileByImplantID(ID string) ([]*File_info, error) {
 			&Info.FileSize,
 			&Info.CreatedAt)
 		if err != nil {
-			logger.Error("Error scanning row: ", err)
+			comunication.Logger.Error("Error scanning row: ", err)
 			return nil, err
 		}
 		files = append(files, Info)
 	}
 	if len(files) == 0 {
-		return nil, ErrNoResults
+		return nil, comunication.ErrNoResults
 	}
 
 	return files, nil
@@ -814,10 +840,10 @@ func GetFileByImplantID(ID string) ([]*File_info, error) {
 
 // Get file by implant ID and file name
 func GetFileByImplantIDAndName(ID string, name string) (*File_info, error) {
-	logger.Info(fmt.Sprintf("SELECT * FROM files WHERE implant_id = '%s' AND file_name = '%s'", ID, name))
+	comunication.Logger.Info(fmt.Sprintf("SELECT * FROM files WHERE implant_id = '%s' AND file_name = '%s'", ID, name))
 	statement, err := dbConn.Prepare("SELECT * FROM files WHERE implant_id = ? AND file_name = ?")
 	if err != nil {
-		logger.Error("Error preparing statement: ", err)
+		comunication.Logger.Error("Error preparing statement: ", err)
 		return nil, err
 	}
 	defer statement.Close()
@@ -834,9 +860,38 @@ func GetFileByImplantIDAndName(ID string, name string) (*File_info, error) {
 		&Info.FileSize,
 		&Info.CreatedAt)
 	if err != nil {
-		logger.Error("Error scanning row: ", err)
+		comunication.Logger.Error("Error scanning row: ", err)
 		return nil, err
 	}
 
 	return Info, nil
+}
+
+// Remove file by implant ID and file
+func RemoveFile(ID string, name string) error {
+	comunication.Logger.Info(fmt.Sprintf("DELETE FROM files WHERE implant_id = '%s' AND file_name = '%s'", ID, name))
+	statement, err := dbConn.Prepare("DELETE FROM files WHERE implant_id = ? AND file_name = ?")
+	if err != nil {
+		comunication.Logger.Error("Error preparing statement: ", err)
+		return err
+	}
+	defer statement.Close()
+
+	resp, err := statement.Exec(ID, name)
+	if err != nil {
+		comunication.Logger.Error("Error executing query: ", err)
+		return err
+	}
+
+	rows, err := resp.RowsAffected()
+	if err != nil {
+		comunication.Logger.Error("Error getting rows affected: ", err)
+	}
+
+	if rows == 0 {
+		comunication.Logger.Warn("No rows affected")
+		return errors.New(fmt.Sprintf("No file with name '%s' for implant '%s'", name, ID))
+	}
+
+	return nil
 }

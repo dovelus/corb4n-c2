@@ -1,21 +1,19 @@
-package transport
+package c2
 
 import (
 	"crypto/tls"
 	"crypto/x509"
 	"net/http"
 	"os"
-	"time"
 
-	"github.com/charmbracelet/log"
-	"github.com/gorilla/mux"
+	"github.com/dovelus/corb4n-c2/server/comunication"
 )
 
-var logger = log.NewWithOptions(os.Stderr, log.Options{
-	ReportCaller:    true,
-	ReportTimestamp: true,
-	TimeFormat:      time.RFC3339,
-})
+// var logger = log.NewWithOptions(os.Stderr, log.Options{
+// 	ReportCaller:    true,
+// 	ReportTimestamp: true,
+// 	TimeFormat:      time.RFC3339,
+// })
 
 // LoadServerCertificate loads the server certificate and key
 func LoadServerCertificate(certFile, keyFile string) (tls.Certificate, error) {
@@ -58,26 +56,26 @@ func CreateTLSConfig(serverCert tls.Certificate, clientCAPool *x509.CertPool) *t
 // logRequest is a middleware that logs the details of each request
 func logRequest(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		logger.Infof("Received request: %s %s from %s", req.Method, req.URL.Path, req.RemoteAddr)
+		comunication.Logger.Infof("Received request: %s %s from %s", req.Method, req.URL.Path, req.RemoteAddr)
 		handler.ServeHTTP(w, req)
 	})
 }
 
-// StartServer starts the HTTPS server with the given TLS configuration
-func StartServer(addr string, cfg *tls.Config) {
-	r := mux.NewRouter()
-	r.Use(logRequest)
-	r.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Add("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
-		w.Write([]byte("This is an example server.\n"))
-	})
+// // StartServer starts the HTTPS server with the given TLS configuration
+// func StartServer(addr string, cfg *tls.Config) {
+// 	r := mux.NewRouter()
+// 	r.Use(logRequest)
+// 	r.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+// 		w.Header().Add("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+// 		w.Write([]byte("This is an example server.\n"))
+// 	})
 
-	srv := &http.Server{
-		Addr:         addr,
-		Handler:      r,
-		TLSConfig:    cfg,
-		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
-	}
+// 	srv := &http.Server{
+// 		Addr:         addr,
+// 		Handler:      r,
+// 		TLSConfig:    cfg,
+// 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
+// 	}
 
-	logger.Fatal(srv.ListenAndServeTLS("", ""))
-}
+// 	logger.Fatal(srv.ListenAndServeTLS("", ""))
+// }

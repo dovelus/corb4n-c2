@@ -1,0 +1,10 @@
+#+TITLE: Corb4n C2 Notes
+#+AUTHOR: Dovelus (Youness Boscaro)
+
+* HTTP Server Structure:
+  Section dedicated to a simple list of functions to implement for the comunication in the C2
+** Implant Side:
+   1. Allow an implant to registed and send its information to us - DONE
+   2. Send back to already registered implants the taks he needs to do
+   3. Recive from the implant the output of each task and store the in the DB and File System for files
+   4. When an implant is killed delete all files + DB Records (Create abstracted function)

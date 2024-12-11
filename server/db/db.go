@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
-	"github.com/charmbracelet/log"
-
+	"github.com/dovelus/corb4n-c2/server/comunication"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -21,17 +19,11 @@ var schema string
 var dbConn *sql.DB
 var dbPath string
 
-var logger = log.NewWithOptions(os.Stderr, log.Options{
-	ReportCaller:    true,
-	ReportTimestamp: true,
-	TimeFormat:      time.RFC3339,
-})
-
 // InitDB initializes the database connection and schema
 func InitDB() {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		logger.Fatal("Error getting user home directory: ", err)
+		comunication.Logger.Fatal("Error getting user home directory: ", err)
 	}
 	dbDir := filepath.Join(homeDir, "Programming", "corb4n-c2", ".corb4n-c2") // Change this to the correct path when in production
 	dbPath = filepath.Join(dbDir, "corb4n-c2.db")
@@ -39,13 +31,13 @@ func InitDB() {
 
 	// Ensure the directory exists
 	if err := os.MkdirAll(dbDir, os.ModePerm); err != nil {
-		logger.Fatal("Error creating database directory: ", err)
+		comunication.Logger.Fatal("Error creating database directory: ", err)
 	}
 
 	// Open the database connection
 	dbConn, err = sql.Open("sqlite3", dbPath)
 	if err != nil {
-		logger.Fatal("Error opening database file: ", err)
+		comunication.Logger.Fatal("Error opening database file: ", err)
 	}
 
 	// Check if the database file exists
@@ -53,18 +45,18 @@ func InitDB() {
 		// Executes the DB schema
 		_, err = dbConn.Exec(schema)
 		if err != nil {
-			logger.Fatal("Error executing schema: ", err)
+			comunication.Logger.Fatal("Error executing schema: ", err)
 		} else {
-			logger.Info("Schema Executed")
+			comunication.Logger.Info("Schema Executed")
 		}
 	} else {
-		logger.Info("Database Already Exists")
+		comunication.Logger.Info("Database Already Exists")
 	}
 }
 
 // Gracefully shuts down the database connection
 func CloseDB() {
-	logger.Warn("Closing Database Connection")
+	comunication.Logger.Warn("Closing Database Connection")
 	if dbConn != nil {
 		dbConn.Close()
 	}
