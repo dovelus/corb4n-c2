@@ -36,7 +36,7 @@ type Listener_info struct {
 	KillDate   int64
 }
 
-// Files are stored on the C2 server
+// Files are stored on the C2 server local filesystem
 type File_info struct {
 	ImplantID string
 	FileName  string

@@ -16,6 +16,15 @@ type Request struct {
 	Content json.RawMessage `json:"content"`
 }
 
+
+// logRequest is a middleware that logs the details of each request
+func logRequest(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		comunication.Logger.Infof("Received request: %s %s from %s", req.Method, req.URL.Path, req.RemoteAddr)
+		handler.ServeHTTP(w, req)
+	})
+}
+
 // Handler function to process requests based on ReqType
 func RequestHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse the request
