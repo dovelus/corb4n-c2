@@ -43,4 +43,3 @@ func CreateTLSConfig(serverCert tls.Certificate, clientCAPool *x509.CertPool) *t
 		},
 	}
 }
-

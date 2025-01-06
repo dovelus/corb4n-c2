@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# Generate CA key and certificate
+openssl genpkey -algorithm RSA -out ca.key
+openssl req -x509 -new -nodes -key ca.key -sha256 -days 365 -out ca.crt -subj "/C=US/ST=State/L=City/O=Organization/OU=OrgUnit/CN=example.com"
+
+# Generate server key and CSR with SANs
+openssl genpkey -algorithm RSA -out server.key
+openssl req -new -key server.key -out server.csr -subj "/C=US/ST=State/L=City/O=Organization/OU=OrgUnit/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+
+# Sign server certificate with CA
+openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt -days 365 -sha256 -extfile <(printf "subjectAltName=DNS:localhost,IP:127.0.0.1")
+
+# Generate client key and CSR
+openssl genpkey -algorithm RSA -out client.key
+openssl req -new -key client.key -out client.csr -subj "/C=US/ST=State/L=City/O=Organization/OU=OrgUnit/CN=client.example.com"
+
+# Sign client certificate with CA
+openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out client.crt -days 365 -sha256
+
+# Clean up
+rm server.csr client.csr ca.srl
+
+echo "Certificates generated:"
+echo "CA Certificate: ca.crt"
+echo "Server Certificate: server.crt"
+echo "Server Key: server.key"
+echo "Client Certificate: client.crt"
+echo "Client Key: client.key"

