@@ -49,7 +49,6 @@ func GetAllImplants() ([]*Implant_info, error) {
 	if len(implants) == 0 {
 		return nil, comunication.ErrNoResults
 	}
-
 	return implants, nil
 }
 
@@ -282,8 +281,20 @@ func UpdateImplantKillDate(ID string) error {
 // Given an implant ID, returns all its tasks
 func GetImplantTasks(ID string, completed bool) ([]*Implant_Task, error) {
 	comunication.Logger.Info(fmt.Sprintf("SELECT * FROM tasks WHERE implant_id='%s' AND completed=%t", ID, completed))
+
+	// Check the total number of tasks in the database
+	var totalTasks int
+	err := dbConn.QueryRow("SELECT COUNT(*) FROM tasks").Scan(&totalTasks)
+	if err != nil {
+		comunication.Logger.Error("Error counting tasks: ", err)
+		return nil, err
+	}
+
+	if totalTasks > MAX_N_TASKS {
+		return nil, fmt.Errorf("total number of tasks exceeds the maximum limit of %d", MAX_N_TASKS)
+	}
+
 	var statement *sql.Stmt
-	var err error
 	if completed {
 		statement, err = dbConn.Prepare("SELECT * FROM tasks WHERE implant_id = ? AND completed = TRUE")
 	} else {
@@ -302,7 +313,7 @@ func GetImplantTasks(ID string, completed bool) ([]*Implant_Task, error) {
 	}
 	defer rows.Close()
 
-	var tasks []*Implant_Task = make([]*Implant_Task, MAX_N_TASKS)
+	var tasks []*Implant_Task
 	for rows.Next() {
 		task := new(Implant_Task)
 		err := rows.Scan(

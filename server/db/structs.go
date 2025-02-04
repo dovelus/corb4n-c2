@@ -2,6 +2,23 @@ package db
 
 const MAX_N_TASKS = 100
 
+// Task types
+const (
+	EXEC_COMMAND uint8 = iota + 200
+	EXEC_SHELLCODE
+	SEND_FILE_TO_IMPLANT
+	GET_FILE_FROM_IMPLANT
+	EXEC_INLINE_ASM
+)
+
+var TaskTypes = map[uint8]string{
+	EXEC_COMMAND:          "EXEC_COMMAND",
+	EXEC_SHELLCODE:        "EXEC_SHELLCODE",
+	SEND_FILE_TO_IMPLANT:  "SEND_FILE_TO_IMPLANT",
+	GET_FILE_FROM_IMPLANT: "GET_FILE_FROM_IMPLANT",
+	EXEC_INLINE_ASM:       "EXEC_INLINE_ASM",
+}
+
 type Implant_info struct {
 	ID          string
 	Hostname    string

