@@ -3,6 +3,7 @@ package c2ext
 import (
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"path/filepath"
 
@@ -43,6 +44,8 @@ func requestHandler(w http.ResponseWriter, r *http.Request) {
 		handleUpdateImplantLastCheckin(w, req.Content)
 	case "GetTasksByImplantID":
 		handleGetTasksByImplantID(w, req.Content)
+	case "UploadTaskResults":
+		// TODO: Implement this
 	default:
 		http.Error(w, "unknown request type", http.StatusBadRequest)
 		comunication.Logger.Errorf("unknown request type: %s", req.ReqType)
@@ -60,7 +63,7 @@ func handleInsertImplantInfo(w http.ResponseWriter, content json.RawMessage) {
 	}
 
 	err = db.AddImplant(implant)
-	if err == comunication.ErrImplantExists {
+	if errors.Is(err, comunication.ErrImplantExists) {
 		http.Error(w, err.Error(), http.StatusConflict)
 		comunication.Logger.Errorf("implant already exists: %v", err)
 		return
@@ -79,7 +82,7 @@ func handleUpdateImplantLastCheckin(w http.ResponseWriter, content json.RawMessa
 	}
 
 	err = db.UpdateImplantCheckin(data.ID)
-	if err == comunication.ErrNoResults {
+	if errors.Is(err, comunication.ErrNoResults) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		comunication.Logger.Errorf("no results found: %v", err)
 		return
@@ -101,7 +104,7 @@ func handleGetTasksByImplantID(w http.ResponseWriter, content json.RawMessage) {
 	tasks, err := db.GetImplantTasks(data.ID, data.Completed)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		comunication.Logger.Errorf("failed to get tasks by implant ID: %v", err)
+		comunication.Logger.Warnf("failed to get tasks by implant ID: %v", data.ID)
 		return
 	}
 
@@ -116,7 +119,10 @@ func handleGetTasksByImplantID(w http.ResponseWriter, content json.RawMessage) {
 	comunication.Logger.Infof("tasks JSON: %s", string(tasksJSON))
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(tasksJSON)
+	_, err = w.Write(tasksJSON)
+	if err != nil {
+		return
+	}
 }
 
 func StartExtHTTPServer() {
@@ -149,7 +155,7 @@ func StartExtHTTPServer() {
 		Addr:         "localhost:8443",
 		Handler:      r,
 		TLSConfig:    tlsConfig,
-		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 	}
 
 	comunication.Logger.Infof("Starting external mTLS-HTTP server on %s", srv.Addr)

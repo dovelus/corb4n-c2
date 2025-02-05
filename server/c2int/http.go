@@ -3,6 +3,7 @@ package c2int
 import (
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"path/filepath"
 
@@ -20,7 +21,7 @@ func logRequest(handler http.Handler) http.Handler {
 }
 
 // Handler function to get all implants
-func handleGetAllImplants(w http.ResponseWriter, r *http.Request) {
+func handleGetAllImplants(w http.ResponseWriter, _ *http.Request) {
 	implants, err := db.GetAllImplants()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -39,7 +40,10 @@ func handleGetAllImplants(w http.ResponseWriter, r *http.Request) {
 	comunication.Logger.Infof("implants JSON: %s", string(implantsJSON))
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(implantsJSON)
+	_, err = w.Write(implantsJSON)
+	if err != nil {
+		return
+	}
 }
 
 // Handler function to remove an implant
@@ -55,7 +59,7 @@ func handleRemoveImplant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = db.RemoveImplant(data.ID)
-	if err == comunication.ErrNoResults {
+	if errors.Is(err, comunication.ErrNoResults) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		comunication.Logger.Errorf("no results found: %v", err)
 		return
@@ -95,7 +99,11 @@ func handleGetAllTasks(w http.ResponseWriter, r *http.Request) {
 	comunication.Logger.Infof("tasks JSON: %s", string(tasksJSON))
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(tasksJSON)
+	_, err = w.Write(tasksJSON)
+	if err != nil {
+		return
+	}
+
 }
 
 // Handler function to create a task for an implant
@@ -124,7 +132,7 @@ func handleCreateTaskForImplant(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// StartExtHTTPServer starts the external HTTP server
+// StartIntHTTPServer starts the external HTTP server
 func StartIntHTTPServer() {
 	serverCertPath, err := filepath.Abs(filepath.Join("certs", "server.crt"))
 	if err != nil {
@@ -155,7 +163,7 @@ func StartIntHTTPServer() {
 		Addr:         "localhost:9443",
 		Handler:      r,
 		TLSConfig:    tlsConfig,
-		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 	}
 	comunication.Logger.Infof("Starting internal HTTPs server on %s", srv.Addr)
 	comunication.Logger.Fatal(srv.ListenAndServeTLS("", ""))
