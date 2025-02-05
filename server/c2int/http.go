@@ -108,7 +108,7 @@ func handleGetAllTasks(w http.ResponseWriter, r *http.Request) {
 
 // Handler function to create a task for an implant
 func handleCreateTaskForImplant(w http.ResponseWriter, r *http.Request) {
-	var task db.Implant_Task
+	var task db.ImplantTask
 	err := json.NewDecoder(r.Body).Decode(&task)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

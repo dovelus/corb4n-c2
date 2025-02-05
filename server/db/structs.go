@@ -19,7 +19,7 @@ var TaskTypes = map[uint8]string{
 	EXEC_INLINE_ASM:       "EXEC_INLINE_ASM",
 }
 
-type Implant_info struct {
+type ImplantInfo struct {
 	ID          string
 	Hostname    string
 	IntIP       string
@@ -33,7 +33,7 @@ type Implant_info struct {
 	KillDate    int64
 }
 
-type Implant_Task struct {
+type ImplantTask struct {
 	TaskID      string
 	ImplantID   string
 	TaskType    uint8
@@ -44,7 +44,7 @@ type Implant_Task struct {
 	TaskResult  []byte
 }
 
-type Listener_info struct {
+type ListenerInfo struct {
 	ListenerID string
 	Config     []byte
 	Host       string
@@ -53,12 +53,12 @@ type Listener_info struct {
 	KillDate   int64
 }
 
-// Files are stored on the C2 server local filesystem
-type File_info struct {
+// FileInfo Files are stored on the C2 server local filesystem
+type FileInfo struct {
 	ImplantID string
 	FileName  string
-	FileSize  int64 //Store the file size in bytes
+	FileSize  int64 // Store the file size in bytes
 	FileType  string
-	FilePath  string //Store the file location in the filesystem
+	FilePath  string // Store the file location in the filesystem
 	CreatedAt int64
 }

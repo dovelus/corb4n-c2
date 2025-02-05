@@ -10,7 +10,7 @@ import (
 )
 
 // GetAllImplants Get all active implants
-func GetAllImplants() ([]*Implant_info, error) {
+func GetAllImplants() ([]*ImplantInfo, error) {
 	comunication.Logger.Info("Getting all implants: SELECT * FROM implants")
 	statement, err := dbConn.Prepare("SELECT * FROM implants")
 	if err != nil {
@@ -30,9 +30,9 @@ func GetAllImplants() ([]*Implant_info, error) {
 		return nil, err
 	}
 
-	var implants []*Implant_info
+	var implants []*ImplantInfo
 	for rows.Next() {
-		Info := new(Implant_info)
+		Info := new(ImplantInfo)
 		err := rows.Scan(
 			&Info.ID,
 			&Info.Hostname,
@@ -58,7 +58,7 @@ func GetAllImplants() ([]*Implant_info, error) {
 }
 
 // GetImplantByID Get specific implant information for a given ID
-func GetImplantByID(ID string) (*Implant_info, error) {
+func GetImplantByID(ID string) (*ImplantInfo, error) {
 	comunication.Logger.Infof("SELECT * FROM implants WHERE implant_id = '%s'", ID)
 	statement, err := dbConn.Prepare("SELECT * FROM implants WHERE implant_id = ?")
 	if err != nil {
@@ -73,7 +73,7 @@ func GetImplantByID(ID string) (*Implant_info, error) {
 	}(statement)
 
 	row := statement.QueryRow(ID)
-	Info := new(Implant_info)
+	Info := new(ImplantInfo)
 	err = row.Scan(
 		&Info.ID,
 		&Info.Hostname,
@@ -94,7 +94,7 @@ func GetImplantByID(ID string) (*Implant_info, error) {
 	return Info, nil
 }
 
-func AddImplant(info *Implant_info) error {
+func AddImplant(info *ImplantInfo) error {
 	// Check if the implant already exists
 	comunication.Logger.Infof("Checking if implant with ID '%s' already exists", info.ID)
 	statement, err := dbConn.Prepare("SELECT COUNT(*) FROM implants WHERE implant_id = ?")
@@ -324,7 +324,7 @@ func UpdateImplantKillDate(ID string) error {
 }
 
 // GetImplantTasks Given an implant ID, returns all its tasks
-func GetImplantTasks(ID string, completed bool) ([]*Implant_Task, error) {
+func GetImplantTasks(ID string, completed bool) ([]*ImplantTask, error) {
 	comunication.Logger.Infof("SELECT * FROM tasks WHERE implant_id='%s' AND completed='%t'", ID, completed)
 
 	// Check the total number of tasks in the database
@@ -368,9 +368,9 @@ func GetImplantTasks(ID string, completed bool) ([]*Implant_Task, error) {
 		}
 	}(rows)
 
-	var tasks []*Implant_Task
+	var tasks []*ImplantTask
 	for rows.Next() {
-		task := new(Implant_Task)
+		task := new(ImplantTask)
 		err := rows.Scan(
 			&task.TaskID,
 			&task.ImplantID,
@@ -395,7 +395,7 @@ func GetImplantTasks(ID string, completed bool) ([]*Implant_Task, error) {
 }
 
 // GetAllTasks Returns all tasks for all implants
-func GetAllTasks(completed bool) ([]*Implant_Task, error) {
+func GetAllTasks(completed bool) ([]*ImplantTask, error) {
 	comunication.Logger.Infof("SELECT * FROM tasks WHERE completed='%t'", completed)
 	var statement *sql.Stmt
 	var err error
@@ -427,9 +427,9 @@ func GetAllTasks(completed bool) ([]*Implant_Task, error) {
 		}
 	}(rows)
 
-	var tasks = make([]*Implant_Task, MAX_N_TASKS)
+	var tasks = make([]*ImplantTask, MAX_N_TASKS)
 	for rows.Next() {
-		task := new(Implant_Task)
+		task := new(ImplantTask)
 		err := rows.Scan(
 			&task.TaskID,
 			&task.ImplantID,
@@ -454,7 +454,7 @@ func GetAllTasks(completed bool) ([]*Implant_Task, error) {
 }
 
 // AddTask Adds a task to the database
-func AddTask(task *Implant_Task) error {
+func AddTask(task *ImplantTask) error {
 	comunication.Logger.Infof("INSERT INTO tasks VALUES ('%s', '%s', '%d', '%s', '%d', '%t', '%d', '%s')",
 		task.TaskID,
 		task.ImplantID,
@@ -529,7 +529,7 @@ func RemovePendingTasksImplant(ID string, taskID string) error {
 	return nil
 }
 
-func GetTask(taskID string) (*Implant_Task, error) {
+func GetTask(taskID string) (*ImplantTask, error) {
 	comunication.Logger.Info("SELECT * FROM tasks WHERE task_id = '%s'", taskID)
 	statement, err := dbConn.Prepare("SELECT * FROM tasks WHERE task_id = ?")
 	if err != nil {
@@ -544,7 +544,7 @@ func GetTask(taskID string) (*Implant_Task, error) {
 	}(statement)
 
 	row := statement.QueryRow(taskID)
-	task := new(Implant_Task)
+	task := new(ImplantTask)
 	err = row.Scan(
 		&task.TaskID,
 		&task.ImplantID,
@@ -672,7 +672,7 @@ func UpdateImplantCheckin(ID string) error {
 }
 
 // GetAllListeners Get all listeners
-func GetAllListeners() ([]*Listener_info, error) {
+func GetAllListeners() ([]*ListenerInfo, error) {
 	comunication.Logger.Info("SELECT * FROM listeners")
 	statement, err := dbConn.Prepare("SELECT * FROM listeners")
 	if err != nil {
@@ -692,9 +692,9 @@ func GetAllListeners() ([]*Listener_info, error) {
 		return nil, err
 	}
 
-	var listeners []*Listener_info
+	var listeners []*ListenerInfo
 	for rows.Next() {
-		Info := new(Listener_info)
+		Info := new(ListenerInfo)
 		err := rows.Scan(
 			&Info.ListenerID,
 			&Info.Config,
@@ -716,7 +716,7 @@ func GetAllListeners() ([]*Listener_info, error) {
 }
 
 // GetListenerByID Get listener by ID
-func GetListenerByID(ID string) (*Listener_info, error) {
+func GetListenerByID(ID string) (*ListenerInfo, error) {
 	comunication.Logger.Infof("SELECT * FROM listeners WHERE listener_id = '%s'", ID)
 	statement, err := dbConn.Prepare("SELECT * FROM listeners WHERE listener_id = ?")
 	if err != nil {
@@ -731,7 +731,7 @@ func GetListenerByID(ID string) (*Listener_info, error) {
 	}(statement)
 
 	row := statement.QueryRow(ID)
-	Info := new(Listener_info)
+	Info := new(ListenerInfo)
 	err = row.Scan(
 		&Info.ListenerID,
 		&Info.Config,
@@ -748,7 +748,7 @@ func GetListenerByID(ID string) (*Listener_info, error) {
 }
 
 // AddListener Add a listener to the database
-func AddListener(info *Listener_info) error {
+func AddListener(info *ListenerInfo) error {
 	comunication.Logger.Infof("INSERT INTO listeners VALUES ('%s', '%s', '%s', '%d', '%d', '%d')",
 		info.ListenerID,
 		info.Config,
@@ -855,7 +855,7 @@ func UpdateListenerKillDate(ID string) error {
 }
 
 // AddFile Add file to the database
-func AddFile(info *File_info) error {
+func AddFile(info *FileInfo) error {
 	comunication.Logger.Infof("INSERT INTO files (implant_id, file_path, file_name, file_type, file_size, created_at) VALUES ('%s', '%s', '%s', '%s', '%d', '%d')",
 		info.ImplantID,
 		info.FilePath,
@@ -893,7 +893,7 @@ func AddFile(info *File_info) error {
 }
 
 // GetAllFiles Get all files
-func GetAllFiles() ([]*File_info, error) {
+func GetAllFiles() ([]*FileInfo, error) {
 	comunication.Logger.Info("SELECT * FROM files")
 	statement, err := dbConn.Prepare("SELECT * FROM files")
 	if err != nil {
@@ -913,9 +913,9 @@ func GetAllFiles() ([]*File_info, error) {
 		return nil, err
 	}
 
-	var files []*File_info
+	var files []*FileInfo
 	for rows.Next() {
-		Info := new(File_info)
+		Info := new(FileInfo)
 		var id int64 // Temporary variable to hold the id
 		err := rows.Scan(
 			&id,
@@ -939,7 +939,7 @@ func GetAllFiles() ([]*File_info, error) {
 }
 
 // GetFilesByImplantID Get file by implant ID
-func GetFilesByImplantID(ID string) ([]*File_info, error) {
+func GetFilesByImplantID(ID string) ([]*FileInfo, error) {
 	comunication.Logger.Infof("SELECT * FROM files WHERE implant_id = '%s'", ID)
 	statement, err := dbConn.Prepare("SELECT * FROM files WHERE implant_id = ?")
 	if err != nil {
@@ -959,9 +959,9 @@ func GetFilesByImplantID(ID string) ([]*File_info, error) {
 		return nil, err
 	}
 
-	var files []*File_info
+	var files []*FileInfo
 	for rows.Next() {
-		Info := new(File_info)
+		Info := new(FileInfo)
 		var id int64 // Temporary variable to hold the id
 		err := rows.Scan(
 			&id,
@@ -985,7 +985,7 @@ func GetFilesByImplantID(ID string) ([]*File_info, error) {
 }
 
 // GetFileByImplantIDAndName Get file by implant ID and file name
-func GetFileByImplantIDAndName(ID string, name string) (*File_info, error) {
+func GetFileByImplantIDAndName(ID string, name string) (*FileInfo, error) {
 	comunication.Logger.Infof("SELECT * FROM files WHERE implant_id = '%s' AND file_name = '%s'", ID, name)
 	statement, err := dbConn.Prepare("SELECT * FROM files WHERE implant_id = ? AND file_name = ?")
 	if err != nil {
@@ -1001,7 +1001,7 @@ func GetFileByImplantIDAndName(ID string, name string) (*File_info, error) {
 
 	row := statement.QueryRow(ID, name)
 	var id int64 // Temporary variable to hold the id
-	Info := new(File_info)
+	Info := new(FileInfo)
 	err = row.Scan(
 		&id,
 		&Info.ImplantID,
