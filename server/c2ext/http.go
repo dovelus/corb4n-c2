@@ -175,6 +175,13 @@ func handleUploadTaskResults(w http.ResponseWriter, r *http.Request, content jso
 		return
 	}
 
+	// Check if TaskID exists in the database
+	_, err = db.GetTask(data.TaskID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		comunication.Logger.Errorf("failed to check task existence: %v", err)
+		return
+	}
 	switch output := data.Result.Output.(type) {
 	case string:
 		// Handle short output

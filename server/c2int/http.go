@@ -129,7 +129,7 @@ func handleCreateTaskForImplant(w http.ResponseWriter, r *http.Request) {
 		comunication.Logger.Errorf("failed to add task: %v", err)
 		return
 	}
-
+	w.Write([]byte(task.TaskID))
 	w.WriteHeader(http.StatusOK)
 }
 
