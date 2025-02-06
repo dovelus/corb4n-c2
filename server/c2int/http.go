@@ -117,6 +117,7 @@ func handleCreateTaskForImplant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	task.TaskID = comunication.GenerateID()
+	task.FileID = "" // Set file_id to empty string
 	task.CreatedAt = comunication.CurrentUnixTimestamp()
 	task.Completed = false
 	task.CompletedAt = 0

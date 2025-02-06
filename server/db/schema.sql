@@ -25,13 +25,15 @@ CREATE TABLE IF NOT EXISTS listeners (
 CREATE TABLE IF NOT EXISTS tasks (
     task_id TEXT PRIMARY KEY,
     implant_id TEXT,
+    file_id INTEGER,
     task_type INTEGER,
     task_data BLOB,
     created_at INTEGER,
     completed BOOLEAN,
     completed_at INTEGER,
     task_result BLOB,
-    FOREIGN KEY (implant_id) REFERENCES implants (implant_id)
+    FOREIGN KEY (implant_id) REFERENCES implants (implant_id),
+    FOREIGN KEY (file_id) REFERENCES files (id)
 );
 
 /* Holds file information */

