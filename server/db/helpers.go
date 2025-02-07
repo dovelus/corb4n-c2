@@ -1057,6 +1057,39 @@ func GetFilesByImplantID(ID string) ([]*FileInfo, error) {
 	return files, nil
 }
 
+// GetFileByFID Get file by ID
+func GetFileByFID(ID uint64) (*FileInfo, error) {
+	comunication.Logger.Infof("SELECT * FROM files WHERE id = '%d'", ID)
+	statement, err := dbConn.Prepare("SELECT * FROM files WHERE id = ?")
+	if err != nil {
+		comunication.Logger.Errorf("Error preparing statement: %v", err)
+		return nil, err
+	}
+	defer func(statement *sql.Stmt) {
+		err := statement.Close()
+		if err != nil {
+			comunication.Logger.Errorf("Error closing statement: %v", err)
+		}
+	}(statement)
+
+	row := statement.QueryRow(ID)
+	Info := new(FileInfo)
+	err = row.Scan(
+		&Info.ID,
+		&Info.ImplantID,
+		&Info.FilePath,
+		&Info.FileName,
+		&Info.FileType,
+		&Info.FileSize,
+		&Info.CreatedAt)
+	if err != nil {
+		comunication.Logger.Errorf("Error scanning row: %v", err)
+		return nil, err
+	}
+
+	return Info, nil
+}
+
 // GetFileID Get file ID by implant ID and file name
 func GetFileID(fileInfo *FileInfo) (int64, error) {
 	var fileID int64

@@ -38,7 +38,7 @@ type ImplantInfo struct {
 type ImplantTask struct {
 	TaskID      string
 	ImplantID   string
-	FileID      string
+	FileID      uint64
 	TaskType    uint8
 	TaskData    []byte
 	CreatedAt   int64

@@ -103,7 +103,7 @@ func handleRemoveImplant(w http.ResponseWriter, r *http.Request) {
 
 	task.TaskID = comunication.GenerateID()
 	task.ImplantID = data.ID
-	task.FileID = "" // Set file_id to empty string
+	task.FileID = 0 // Set file_id to empty string
 	task.TaskType = db.KillImplant
 	task.CreatedAt = comunication.CurrentUnixTimestamp()
 	task.Completed = false
@@ -205,7 +205,7 @@ func handleCreateTaskForImplant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	task.TaskID = comunication.GenerateID()
-	task.FileID = "" // Set file_id to empty string
+	task.FileID = 0 // Set file_id to empty string
 	task.CreatedAt = comunication.CurrentUnixTimestamp()
 	task.Completed = false
 	task.CompletedAt = 0
@@ -221,6 +221,47 @@ func handleCreateTaskForImplant(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		comunication.Logger.Errorf("failed to write response: %v", err)
 		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+// Handler function to get the result of a task
+func handleGetTaskResult(w http.ResponseWriter, r *http.Request) {
+	var data struct {
+		TaskID string `json:"task_id"`
+	}
+	err := json.NewDecoder(r.Body).Decode(&data)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		comunication.Logger.Errorf("failed to decode get task result request: %v", err)
+		return
+	}
+
+	task, err := db.GetTask(data.TaskID)
+	if errors.Is(err, comunication.ErrNoResults) {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		comunication.Logger.Errorf("no results found: %v", err)
+		return
+	}
+
+	taskResult := task.TaskResult
+	if taskResult == nil || task.FileID != 0 {
+		pathToFile, err := db.GetFileByFID(task.FileID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			comunication.Logger.Errorf("failed to get file by FID: %v", err)
+			return
+		}
+		// Return the file content in the response
+		http.ServeFile(w, r, pathToFile.FilePath)
+	} else {
+		taskResult := task.TaskResult
+		w.Header().Set("Content-Type", "application/json")
+		_, err = w.Write(taskResult)
+		if err != nil {
+			return
+		}
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -275,6 +316,7 @@ func StartIntHTTPServer() {
 	r.HandleFunc("/getAllTasks", handleGetAllTasks).Methods("POST")
 	r.HandleFunc("/getTaskByID", handleGetTaskByID).Methods("POST")
 	r.HandleFunc("/createTaskForImplant", handleCreateTaskForImplant).Methods("POST")
+	r.HandleFunc("/getTaskResult", handleGetTaskResult).Methods("POST")
 	r.HandleFunc("/cancelTask", handleCancelTask).Methods("POST")
 
 	srv := &http.Server{
