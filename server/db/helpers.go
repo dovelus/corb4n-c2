@@ -1075,7 +1075,6 @@ func GetFileByFID(ID uint64) (*FileInfo, error) {
 	row := statement.QueryRow(ID)
 	Info := new(FileInfo)
 	err = row.Scan(
-		&Info.ID,
 		&Info.ImplantID,
 		&Info.FilePath,
 		&Info.FileName,
