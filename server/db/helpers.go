@@ -500,9 +500,9 @@ func AddTask(task *ImplantTask) error {
 }
 
 // RemovePendingTasksImplant Removes non completed tasks for a given implant-id and taskid
-func RemovePendingTasksImplant(ID string, taskID string) error {
-	comunication.Logger.Info(fmt.Sprintf("DELETE FROM tasks WHERE implant_id = '%s' AND task_id = '%s' AND completed = FALSE", ID, taskID))
-	statement, err := dbConn.Prepare("DELETE FROM tasks WHERE implant_id = ? AND task_id = ? AND completed = FALSE")
+func RemovePendingTasksImplant(ID string) error {
+	comunication.Logger.Info(fmt.Sprintf("DELETE FROM tasks WHERE implant_id = '%s' AND completed = FALSE", ID))
+	statement, err := dbConn.Prepare("DELETE FROM tasks WHERE implant_id = ? AND completed = FALSE")
 	if err != nil {
 		comunication.Logger.Errorf("Error preparing statement: %v", err)
 		return err
@@ -514,7 +514,7 @@ func RemovePendingTasksImplant(ID string, taskID string) error {
 		}
 	}(statement)
 
-	resp, err := statement.Exec(ID, taskID)
+	resp, err := statement.Exec(ID)
 	if err != nil {
 		comunication.Logger.Errorf("Error executing query: %v", err)
 		return err
@@ -527,7 +527,41 @@ func RemovePendingTasksImplant(ID string, taskID string) error {
 
 	if rows == 0 {
 		comunication.Logger.Warn("No rows affected")
-		return errors.New(fmt.Sprintf("No task with ID '%s' for implant '%s'", taskID, ID))
+		return errors.New(fmt.Sprintf("No task with implant-ID: '%s'", ID))
+	}
+
+	return nil
+}
+
+// RemoveAllTasksImplant Removes all tasks for a given implant-id
+func RemoveAllTasksImplant(ID string) error {
+	comunication.Logger.Infof("DELETE FROM tasks WHERE implant_id = '%s'", ID)
+	statement, err := dbConn.Prepare("DELETE FROM tasks WHERE implant_id = ?")
+	if err != nil {
+		comunication.Logger.Errorf("Error preparing statement: %v", err)
+		return err
+	}
+	defer func(statement *sql.Stmt) {
+		err := statement.Close()
+		if err != nil {
+			comunication.Logger.Errorf("Error closing statement: %v", err)
+		}
+	}(statement)
+
+	resp, err := statement.Exec(ID)
+	if err != nil {
+		comunication.Logger.Errorf("Error executing query: %v", err)
+		return err
+	}
+
+	rows, err := resp.RowsAffected()
+	if err != nil {
+		comunication.Logger.Errorf("Error getting rows affected for tasks: %v", err)
+	}
+
+	if rows == 0 {
+		comunication.Logger.Warn("No rows affected")
+		return errors.New(fmt.Sprintf("No task with implant-ID: '%s'", ID))
 	}
 
 	return nil

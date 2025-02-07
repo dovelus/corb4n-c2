@@ -12,5 +12,6 @@ func main() {
 
 	// Start the internal and external HTTP servers
 	go c2int.StartIntHTTPServer()
+
 	c2ext.StartExtHTTPServer()
 }

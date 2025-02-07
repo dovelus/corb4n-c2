@@ -4,20 +4,21 @@ const MAX_N_TASKS = 100
 
 // Task types
 const (
-	EXEC_COMMAND uint8 = iota + 200
-	EXEC_SHELLCODE
-	SEND_FILE_TO_IMPLANT
-	GET_FILE_FROM_IMPLANT
-	EXEC_INLINE_ASM
-	KILL_IMPLANt
+	ExecCommand uint8 = iota + 200
+	ExecShellcode
+	SendFileToImplant
+	GetFileFromImplant
+	ExecInlineAsm
+	KillImplant
 )
 
 var TaskTypes = map[uint8]string{
-	EXEC_COMMAND:          "EXEC_COMMAND",
-	EXEC_SHELLCODE:        "EXEC_SHELLCODE",
-	SEND_FILE_TO_IMPLANT:  "SEND_FILE_TO_IMPLANT",
-	GET_FILE_FROM_IMPLANT: "GET_FILE_FROM_IMPLANT",
-	EXEC_INLINE_ASM:       "EXEC_INLINE_ASM",
+	ExecCommand:        "EXEC_COMMAND",
+	ExecShellcode:      "EXEC_SHELLCODE",
+	SendFileToImplant:  "SEND_FILE_TO_IMPLANT",
+	GetFileFromImplant: "GET_FILE_FROM_IMPLANT",
+	ExecInlineAsm:      "EXEC_INLINE_ASM",
+	KillImplant:        "KILL_IMPLANT",
 }
 
 type ImplantInfo struct {
