@@ -211,6 +211,13 @@ func handleCreateTaskForImplant(w http.ResponseWriter, r *http.Request) {
 	task.CompletedAt = 0
 	task.TaskResult = nil
 
+	// Check if taskType is in the TaskTypes map
+	if _, ok := db.TaskTypes[task.TaskType]; !ok {
+		http.Error(w, "invalid task type", http.StatusBadRequest)
+		comunication.Logger.Errorf("invalid task type")
+		return
+	}
+
 	err = db.AddTask(&task)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

